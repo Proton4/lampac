@@ -1,1 +1,1 @@
-# lampac
+# lampac scripts
