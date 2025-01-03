@@ -115,18 +115,27 @@
           return new Promise(function (resolve) {
             //if ($(mySelector).text() !== 'Не выбран') return resolve();
 
-            $.ajax({
-              url: myLink,
-              method: 'GET',
-              success: function success(response, textStatus, xhr) {
-                var color;
-                if (xhr.status === 200) {
-                  color = '1aff00'; // Успех
-                } else if (xhr.status === 401) {
-                  color = 'ff2e36'; // Ошибка авторизации
-                } else {
-                  color = 'ff2e36'; // Другие ошибки
-                }
+           var statusColors = {
+    200: '#1aff00',  // Успех (зелёный)
+    401: '#ff2e36',  // Ошибка авторизации (красный)
+    404: '#ffd700',  // Не найдено (жёлтый)
+    default: '#ffa500' // Другие ошибки (оранжевый)
+};
+
+$.ajax({
+    url: myLink,
+    method: 'GET',
+    success: function(response, textStatus, xhr) {
+        var color = statusColors[xhr.status] || statusColors.default;
+        $(mySelector).css('color', color);
+    },
+    error: function(xhr) {
+        // Если запрос вообще не выполнился, например, сервер не отвечает
+        var color = statusColors[xhr.status] || statusColors.default;
+        $(mySelector).css('color', color);
+    }
+});
+
                 $(mySelector).css('color', color);
 
                 // Кешируем ответ только в случае успеха или ошибки авторизации
