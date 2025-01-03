@@ -64,7 +64,7 @@
         parser_torrent_type: 'jackett'
       }
     }, {
-      base: '192_168_88_22',
+      base: 'http_192_168_88_22',
       name: 'http_My_local',
       settings: {
         url: 'http://192.168.88.22:9117',
