@@ -56,7 +56,7 @@
         parser_torrent_type: 'jackett'
       }
     }, {
-      base: '192_168_88_22',
+      base: '192_168_88_22_9117',
       name: 'My_local',
       settings: {
         url: '192.168.88.22:9117',
@@ -64,11 +64,11 @@
         parser_torrent_type: 'jackett'
       }
     }, {
-      base: 'http_192_168_88_22',
-      name: 'http_My_local',
+      base: 'trs_my_to',
+      name: 'Trs.my.to',
       settings: {
-        url: '192.168.88.22:9117',
-        key: 'ysq90rqkky1qg38orl6uyrhy15icxfl6',
+        url: 'trs.my.to:9118',
+        key: '',
         parser_torrent_type: 'jackett'
       }
     }, {
@@ -115,27 +115,18 @@
           return new Promise(function (resolve) {
             //if ($(mySelector).text() !== 'Не выбран') return resolve();
 
-           var statusColors = {
-    200: '#1aff00',  // Успех (зелёный)
-    401: '#ff2e36',  // Ошибка авторизации (красный)
-    404: '#ffd700',  // Не найдено (жёлтый)
-    default: '#ffa500' // Другие ошибки (оранжевый)
-};
-
-$.ajax({
-    url: myLink,
-    method: 'GET',
-    success: function(response, textStatus, xhr) {
-        var color = statusColors[xhr.status] || statusColors.default;
-        $(mySelector).css('color', color);
-    },
-    error: function(xhr) {
-        // Если запрос вообще не выполнился, например, сервер не отвечает
-        var color = statusColors[xhr.status] || statusColors.default;
-        $(mySelector).css('color', color);
-    }
-});
-
+            $.ajax({
+              url: myLink,
+              method: 'GET',
+              success: function success(response, textStatus, xhr) {
+                var color;
+                if (xhr.status === 200) {
+                  color = '1aff00'; // Успех
+                } else if (xhr.status === 401) {
+                  color = 'ff2e36'; // Ошибка авторизации
+                } else {
+                  color = 'ff2e36'; // Другие ошибки
+                }
                 $(mySelector).css('color', color);
 
                 // Кешируем ответ только в случае успеха или ошибки авторизации
