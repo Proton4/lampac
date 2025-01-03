@@ -67,7 +67,7 @@
       base: 'http_192_168_88_22',
       name: 'http_My_local',
       settings: {
-        url: 'http://192.168.88.22:9117',
+        url: '192.168.88.22:9117',
         key: 'ysq90rqkky1qg38orl6uyrhy15icxfl6',
         parser_torrent_type: 'jackett'
       }
