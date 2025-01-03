@@ -56,7 +56,7 @@
         parser_torrent_type: 'jackett'
       }
     }, {
-      base: '192_168_88_22_9117',
+      base: '192_168_88_22',
       name: 'My_local',
       settings: {
         url: '192.168.88.22:9117',
@@ -64,11 +64,11 @@
         parser_torrent_type: 'jackett'
       }
     }, {
-      base: 'trs_my_to',
-      name: 'Trs.my.to',
+      base: '192_168_88_22',
+      name: 'http_My_local',
       settings: {
-        url: 'trs.my.to:9118',
-        key: '',
+        url: 'http://192.168.88.22:9117',
+        key: 'ysq90rqkky1qg38orl6uyrhy15icxfl6',
         parser_torrent_type: 'jackett'
       }
     }, {
