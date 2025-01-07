@@ -57,18 +57,18 @@
       }
     }, {
       base: '192_168_88_22_9117',
-      name: 'My_local',
+      name: 'My_local_Jackett',
       settings: {
         url: '192.168.88.22:9117',
         key: 'ysq90rqkky1qg38orl6uyrhy15icxfl6',
         parser_torrent_type: 'jackett'
       }
     }, {
-      base: 'http_192_168_88_22_9117',
-      name: 'http_My_local',
+      base: '192_168_88_22_9116',
+      name: 'My_local_JacRed',
       settings: {
-        url: 'http://192.168.88.22:9117',
-        key: 'ysq90rqkky1qg38orl6uyrhy15icxfl6',
+        url: '192.168.88.22:9116',
+        key: '',
         parser_torrent_type: 'jackett'
       }
     }, {
