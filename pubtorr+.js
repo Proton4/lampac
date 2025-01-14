@@ -40,19 +40,19 @@
     };
 
     var parsersInfo = [{
-      base: 'lampa_app',
-      name: 'Lampa.app',
+      base: 'BATjacRAD',
+      name: 'BATjacRAD',
       settings: {
-        url: 'lampa.app',
-        key: '',
+        url: 'batmen.my.to',
+        key: '9',
         parser_torrent_type: 'jackett'
       }
     }, {
-      base: 'jacred_viewbox_dev',
-      name: 'Viewbox',
+      base: 'batmen_my_to:9199',
+      name: 'BATjackett',
       settings: {
-        url: 'jacred.viewbox.dev',
-        key: 'viewbox',
+        url: 'batmen.my.to:9199',
+        key: '9',
         parser_torrent_type: 'jackett'
       }
     }, {
@@ -72,11 +72,11 @@
         parser_torrent_type: 'jackett'
       }
     }, {
-      base: 'jacred_my_to',
-      name: 'Jacred.my.to',
+      base: 'jacred_viewbox_dev',
+      name: 'Viewbox',
       settings: {
-        url: 'jacred.my.to',
-        key: '',
+        url: 'jacred.viewbox.dev',
+        key: 'viewbox',
         parser_torrent_type: 'jackett'
       }
     }, {
@@ -85,6 +85,14 @@
       settings: {
         url: 'jacred.xyz',
         key: '',
+        parser_torrent_type: 'jackett'
+      }
+    }, {
+      base: 'lampa_app',
+      name: 'lampa.add',
+      settings: {
+        url: 'lampa.add',
+        key: '1',
         parser_torrent_type: 'jackett'
       }
     }];
