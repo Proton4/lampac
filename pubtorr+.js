@@ -39,7 +39,7 @@
       translate: translate
     };
 
-    var parsersInfo = [{
+var parsersInfo = [{
       base: 'BATjacRAD',
       name: 'BATjacRAD',
       settings: {
@@ -57,7 +57,7 @@
       }
     }, {
       base: '192_168_88_22_9117',
-      name: 'My_local_Jackett.vpnhome',
+      name: 'My_local_Jackett',
       settings: {
         url: '192.168.88.22:9117',
         key: 'ysq90rqkky1qg38orl6uyrhy15icxfl6',
@@ -65,10 +65,18 @@
       }
     }, {
       base: '192_168_88_22_9116',
-      name: 'My_local_JacRed.vpnhome',
+      name: 'My_local_JacRed',
       settings: {
         url: '192.168.88.22:9116',
         key: '',
+        parser_torrent_type: 'jackett'
+      }
+    }, {
+      base: 'JacRed_NL',
+      name: 'JacRed.NL',
+      settings: {
+        url: '45.155.120.106:9118',
+        key: '1',
         parser_torrent_type: 'jackett'
       }
     }, {
@@ -89,13 +97,14 @@
       }
     }, {
       base: 'lampa_app',
-      name: 'lampa.add.vpnEU',
+      name: 'lampa.add',
       settings: {
         url: 'lampa.add',
         key: '1',
         parser_torrent_type: 'jackett'
       }
     }];
+
 
     var proto = location.protocol === "https:" ? 'https://' : 'http://';
 
