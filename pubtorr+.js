@@ -79,7 +79,15 @@ var parsersInfo = [{
         key: '1',
         parser_torrent_type: 'jackett'
       }
-    }, {
+    },{
+      base: 'JacRed_NL_vpn',
+      name: 'JacRed.NL.vpn',
+      settings: {
+        url: '172.29.172.1:9118',
+        key: '1',
+        parser_torrent_type: 'jackett'
+      }
+    },	{
       base: 'jacred_viewbox_dev',
       name: 'Viewbox',
       settings: {
@@ -104,7 +112,6 @@ var parsersInfo = [{
         parser_torrent_type: 'jackett'
       }
     }];
-
 
     var proto = location.protocol === "https:" ? 'https://' : 'http://';
 
