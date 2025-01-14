@@ -57,7 +57,7 @@ var parsersInfo = [{
       }
     }, {
       base: '192_168_88_22_9117',
-      name: 'My_local_Jackett',
+      name: 'My_local_Jackett.vpnhome',
       settings: {
         url: '192.168.88.22:9117',
         key: 'ysq90rqkky1qg38orl6uyrhy15icxfl6',
@@ -65,7 +65,7 @@ var parsersInfo = [{
       }
     }, {
       base: '192_168_88_22_9116',
-      name: 'My_local_JacRed',
+      name: 'My_local_JacRed.vpnhome',
       settings: {
         url: '192.168.88.22:9116',
         key: '',
@@ -97,7 +97,7 @@ var parsersInfo = [{
       }
     }, {
       base: 'lampa_app',
-      name: 'lampa.add',
+      name: 'lampa.add.vpnEU',
       settings: {
         url: 'lampa.add',
         key: '1',
