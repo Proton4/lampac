@@ -72,16 +72,16 @@ var parsersInfo = [{
         parser_torrent_type: 'jackett'
       }
     }, {
-      base: 'JacRed_NL',
-      name: 'JacRed.NL',
+      base: 'JacRed_PL',
+      name: 'JacRed.PL',
       settings: {
-        url: '45.155.120.106:9118',
+        url: '185.36.143.11:9118',
         key: '1',
         parser_torrent_type: 'jackett'
       }
     },{
-      base: 'JacRed_NL_vpn',
-      name: 'JacRed.NL.vpn',
+      base: 'JacRed_PL_vpn',
+      name: 'JacRed.PL.vpn',
       settings: {
         url: '172.29.172.1:9118',
         key: '1',
