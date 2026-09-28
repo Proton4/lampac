@@ -4,7 +4,7 @@
     if (window.lme_diagnostics_plugin_ready) return;
     window.lme_diagnostics_plugin_ready = true;
 
-    var PLUGIN_VERSION = '0.1.0';
+    var PLUGIN_VERSION = '0.1.1';
     var COMPONENT = 'lme_diagnostics';
     var MENU_TITLE = 'LME Диагностика';
     var REQUEST_TIMEOUT = 12000;
@@ -397,11 +397,14 @@
             actions.append(refresh);
             content.append(actions);
 
+            var isAndroid = !!(Lampa.Platform && Lampa.Platform.is && Lampa.Platform.is('android'));
+            var appVersion = (Lampa.Manifest && Lampa.Manifest.app_version) ? Lampa.Manifest.app_version : 'unknown';
+
             setRow(
                 'device_platform',
-                Lampa.Platform.is('android') ? 'ok' : 'warn',
-                Lampa.Platform.is('android') ? 'Android native HTTP' : 'XHR / platform HTTP',
-                Lampa.Platform.is('android')
+                isAndroid ? 'ok' : 'warn',
+                isAndroid ? 'Android native HTTP' : 'XHR / platform HTTP',
+                isAndroid
                     ? 'Lampa.Reguest.native → AndroidJS.httpReq'
                     : 'На не-Android платформах внешние сайты могут ограничиваться CORS'
             );
@@ -409,7 +412,7 @@
             setRow(
                 'device_lampa',
                 'ok',
-                (Lampa.Manifest.app_version || 'unknown'),
+                appVersion,
                 'Diagnostics plugin v' + PLUGIN_VERSION
             );
         }
@@ -1041,8 +1044,18 @@
         });
     }
 
-    function addMenu() {
+    function addMenu(attempt) {
+        attempt = attempt || 0;
+
         if ($('.menu__item[data-action="' + COMPONENT + '"]').length) return;
+
+        var menu = $('.menu .menu__list').eq(0);
+        if (!menu.length) {
+            if (attempt < 20) {
+                setTimeout(function () { addMenu(attempt + 1); }, 500);
+            }
+            return;
+        }
 
         var icon = [
             '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">',
@@ -1050,32 +1063,42 @@
             '</svg>'
         ].join('');
 
-        if (Lampa.Menu && Lampa.Menu.addButton) {
-            Lampa.Menu.addButton(icon, MENU_TITLE, openDiagnostics)
-                .attr('data-action', COMPONENT);
-        } else {
-            var button = $(
-                '<li class="menu__item selector" data-action="' + COMPONENT + '">' +
-                    '<div class="menu__ico">' + icon + '</div>' +
-                    '<div class="menu__text">' + MENU_TITLE + '</div>' +
-                '</li>'
-            );
+        var button = $(
+            '<li class="menu__item selector" data-action="' + COMPONENT + '">' +
+                '<div class="menu__ico">' + icon + '</div>' +
+                '<div class="menu__text">' + MENU_TITLE + '</div>' +
+            '</li>'
+        );
 
-            button.on('hover:enter', openDiagnostics);
-            $('.menu .menu__list').eq(0).append(button);
-        }
+        button.on('hover:enter', openDiagnostics);
+        menu.append(button);
     }
 
     function init() {
-        if (!Lampa.Component.get(COMPONENT)) {
+        try {
             Lampa.Component.add(COMPONENT, DiagnosticsComponent);
+        } catch (e) {
+            console.warn('[LME Diagnostics] Component.add:', e && e.message ? e.message : e);
         }
 
-        registerTemplates();
-        setTimeout(addMenu, 300);
+        try {
+            registerTemplates();
+        } catch (e) {
+            console.warn('[LME Diagnostics] templates:', e && e.message ? e.message : e);
+        }
+
+        setTimeout(function () { addMenu(0); }, 300);
+
+        try {
+            if (Lampa.Noty && Lampa.Noty.show) {
+                Lampa.Noty.show('LME Diagnostics v' + PLUGIN_VERSION + ' загружен', { time: 5000 });
+            }
+        } catch (e) {}
 
         console.log('[LME Diagnostics] loaded v' + PLUGIN_VERSION);
     }
+
+    console.log('[LME Diagnostics] script evaluated v' + PLUGIN_VERSION);
 
     if (window.appready) {
         init();
