@@ -4,10 +4,314 @@
     if (window.lme_diagnostics_plugin_ready) return;
     window.lme_diagnostics_plugin_ready = true;
 
-    var PLUGIN_VERSION = '0.1.1';
+    var PLUGIN_VERSION = '0.1.3-es5-i18n';
     var COMPONENT = 'lme_diagnostics';
-    var MENU_TITLE = 'LME Диагностика';
     var REQUEST_TIMEOUT = 12000;
+
+    /*
+     * UI language follows Lampa language.
+     * Supported: English, Ukrainian, Russian.
+     * Any other Lampa language falls back to English.
+     */
+    var I18N = {
+        en: {
+            menu_title: 'LME Diagnostics',
+            hero_sub: 'Check from this device',
+            summary_section: 'Summary',
+            state: 'Status',
+            device_section: 'Device / Internet',
+            http_mode: 'HTTP mode',
+            lampa: 'Lampa',
+            public_ip: 'Public IP',
+            country: 'Country',
+            isp: 'ISP / network',
+            server_section: 'LampaME — server infrastructure',
+            sources_section: 'Sources — check from device',
+            players_section: 'Players / streams — check from device',
+            check_again: 'Check again',
+            checking: 'Checking…',
+            cors_warning: 'On non-Android platforms external sites may be restricted by CORS',
+            unavailable: 'Unavailable',
+            ip_unavailable: 'Could not determine public IP',
+            response: 'Response',
+            api_unavailable: 'API unavailable',
+            data_error: 'Data error',
+            no_heartbeat: 'No heartbeat',
+            not_published: 'Not published',
+            player_prefix: 'player: ',
+            probe_failed: 'probe failed',
+            player_not_found_detail: 'Player URL was not found on the test pages',
+            stream_not_found: tr('stream_not_found'),
+            stream_not_found_detail: 'Player is reachable, but m3u8/mp4 URL was not extracted; GEO/anti-bot or changed markup is possible',
+            errors_found: 'Errors detected',
+            errors_label: 'Errors',
+            warnings_label: 'Warnings',
+            warnings_found: 'Warnings detected',
+            checks_attention: 'checks require attention',
+            all_available: 'Everything is available',
+            all_respond: 'Servers, sources and players are responding',
+            dont_close: 'Do not close this screen',
+            diagnostics_error: 'Diagnostics error',
+            loaded: 'loaded',
+            android_native: 'Android native HTTP',
+            platform_http: 'XHR / platform HTTP',
+            diagnostics_plugin: 'Diagnostics plugin v',
+            stream_label: 'stream'
+        },
+        uk: {
+            menu_title: 'LME Діагностика',
+            hero_sub: 'Перевірка саме з цього пристрою',
+            summary_section: 'Підсумок',
+            state: 'Стан',
+            device_section: 'Пристрій / Інтернет',
+            http_mode: 'HTTP режим',
+            lampa: 'Lampa',
+            public_ip: 'Публічна IP',
+            country: 'Країна',
+            isp: 'Провайдер / мережа',
+            server_section: 'LampaME — серверна інфраструктура',
+            sources_section: 'Джерела — перевірка з пристрою',
+            players_section: 'Плеєри / потоки — перевірка з пристрою',
+            check_again: 'Перевірити знову',
+            checking: 'Перевірка…',
+            cors_warning: 'На не-Android платформах зовнішні сайти можуть обмежуватися CORS',
+            unavailable: 'Недоступно',
+            ip_unavailable: 'Не вдалося визначити публічну IP',
+            response: 'Відповідь',
+            api_unavailable: 'API недоступний',
+            data_error: 'Помилка даних',
+            no_heartbeat: 'Немає heartbeat',
+            not_published: 'Не опубліковано',
+            player_prefix: 'плеєр: ',
+            probe_failed: 'probe не відповів',
+            player_not_found_detail: 'URL плеєра не знайдено на тестових сторінках',
+            stream_not_found: 'ПОТІК НЕ ЗНАЙДЕНО',
+            stream_not_found_detail: 'Плеєр доступний, але URL m3u8/mp4 не витягнуто; можливий GEO/anti-bot або змінена розмітка',
+            errors_found: 'Є помилки',
+            errors_label: 'Помилок',
+            warnings_label: 'Попереджень',
+            warnings_found: 'Є попередження',
+            checks_attention: 'перевірок потребують уваги',
+            all_available: 'Усе доступно',
+            all_respond: 'Сервери, джерела та плеєри відповідають',
+            dont_close: 'Не закривайте цей екран',
+            diagnostics_error: 'Помилка діагностики',
+            loaded: 'завантажено',
+            android_native: 'Android native HTTP',
+            platform_http: 'XHR / platform HTTP',
+            diagnostics_plugin: 'Плагін діагностики v',
+            stream_label: 'потік'
+        },
+        ru: {
+            menu_title: 'LME Диагностика',
+            hero_sub: 'Проверка именно с этого устройства',
+            summary_section: 'Итог',
+            state: 'Состояние',
+            device_section: 'Устройство / Интернет',
+            http_mode: 'HTTP режим',
+            lampa: 'Lampa',
+            public_ip: 'Публичный IP',
+            country: 'Страна',
+            isp: 'Провайдер / сеть',
+            server_section: 'LampaME — серверная инфраструктура',
+            sources_section: 'Источники — проверка с устройства',
+            players_section: 'Плееры / стримы — проверка с устройства',
+            check_again: 'Проверить заново',
+            checking: 'Проверка…',
+            cors_warning: tr('cors_warning'),
+            unavailable: 'Недоступно',
+            ip_unavailable: 'Не удалось определить внешний IP',
+            response: 'Ответ',
+            api_unavailable: 'API недоступно',
+            data_error: 'Ошибка данных',
+            no_heartbeat: 'Нет heartbeat',
+            not_published: 'Не опубликован',
+            player_prefix: 'плеер: ',
+            probe_failed: 'probe не ответил',
+            player_not_found_detail: 'URL плеера не найден на проверочных страницах',
+            stream_not_found: 'СТРИМ НЕ НАЙДЕН',
+            stream_not_found_detail: 'Плеер доступен, но URL m3u8/mp4 не извлечён; возможен GEO/anti-bot или изменённая разметка',
+            errors_found: 'Есть ошибки',
+            errors_label: 'Ошибок',
+            warnings_label: 'Предупреждений',
+            warnings_found: 'Есть предупреждения',
+            checks_attention: 'проверок требуют внимания',
+            all_available: 'Всё доступно',
+            all_respond: 'Серверы, источники и плееры отвечают',
+            dont_close: 'Не закрывайте этот экран',
+            diagnostics_error: 'Ошибка диагностики',
+            loaded: 'загружен',
+            android_native: 'Android native HTTP',
+            platform_http: 'XHR / platform HTTP',
+            diagnostics_plugin: 'Плагин диагностики v',
+            stream_label: 'стрим'
+        }
+    };
+
+    function uiLanguage() {
+        var code = 'en';
+
+        try {
+            if (window.Lampa && Lampa.Storage && Lampa.Storage.get) {
+                code = String(Lampa.Storage.get('language', 'en') || 'en').toLowerCase();
+            }
+        } catch (e) {}
+
+        if (code.indexOf('uk') === 0 || code.indexOf('ua') === 0) return 'uk';
+        if (code.indexOf('ru') === 0) return 'ru';
+        if (code.indexOf('en') === 0) return 'en';
+
+        return 'en';
+    }
+
+    function tr(key) {
+        var code = uiLanguage();
+        var table = I18N[code] || I18N.en;
+        return table[key] || I18N.en[key] || key;
+    }
+
+    var MENU_TITLE = tr('menu_title');
+
+    /*
+     * Legacy ES5 compatibility for old Android WebView.
+     */
+    var PromiseImpl = window.Promise;
+
+    if (!PromiseImpl) {
+        PromiseImpl = function (executor) {
+            var self = this;
+            self.state = 'pending';
+            self.value = null;
+            self.handlers = [];
+
+            function processHandler(handler) {
+                if (self.state === 'pending') {
+                    self.handlers.push(handler);
+                    return;
+                }
+
+                setTimeout(function () {
+                    var callback = self.state === 'fulfilled' ? handler.onFulfilled : handler.onRejected;
+
+                    if (typeof callback !== 'function') {
+                        if (self.state === 'fulfilled') handler.resolve(self.value);
+                        else handler.reject(self.value);
+                        return;
+                    }
+
+                    try {
+                        handler.resolve(callback(self.value));
+                    } catch (e) {
+                        handler.reject(e);
+                    }
+                }, 0);
+            }
+
+            function settle(state, value) {
+                if (self.state !== 'pending') return;
+
+                if (state === 'fulfilled' && value && typeof value.then === 'function') {
+                    try {
+                        value.then(resolve, reject);
+                        return;
+                    } catch (e) {
+                        reject(e);
+                        return;
+                    }
+                }
+
+                self.state = state;
+                self.value = value;
+
+                setTimeout(function () {
+                    var copy = self.handlers.slice(0);
+                    self.handlers = [];
+
+                    for (var i = 0; i < copy.length; i++) {
+                        processHandler(copy[i]);
+                    }
+                }, 0);
+            }
+
+            function resolve(value) {
+                settle('fulfilled', value);
+            }
+
+            function reject(reason) {
+                settle('rejected', reason);
+            }
+
+            self.then = function (onFulfilled, onRejected) {
+                return new PromiseImpl(function (resolveNext, rejectNext) {
+                    processHandler({
+                        onFulfilled: onFulfilled,
+                        onRejected: onRejected,
+                        resolve: resolveNext,
+                        reject: rejectNext
+                    });
+                });
+            };
+
+            self['catch'] = function (onRejected) {
+                return self.then(null, onRejected);
+            };
+
+            try {
+                executor(resolve, reject);
+            } catch (e) {
+                reject(e);
+            }
+        };
+
+        PromiseImpl.resolve = function (value) {
+            if (value && typeof value.then === 'function') return value;
+
+            return new PromiseImpl(function (resolve) {
+                resolve(value);
+            });
+        };
+
+        PromiseImpl.reject = function (reason) {
+            return new PromiseImpl(function (resolve, reject) {
+                reject(reason);
+            });
+        };
+
+        PromiseImpl.all = function (items) {
+            return new PromiseImpl(function (resolve, reject) {
+                var list = items || [];
+                var result = [];
+                var remaining = list.length;
+
+                if (!remaining) {
+                    resolve(result);
+                    return;
+                }
+
+                function complete(index, value) {
+                    result[index] = value;
+                    remaining--;
+                    if (remaining === 0) resolve(result);
+                }
+
+                for (var i = 0; i < list.length; i++) {
+                    (function (index) {
+                        PromiseImpl.resolve(list[index]).then(
+                            function (value) {
+                                complete(index, value);
+                            },
+                            function (reason) {
+                                reject(reason);
+                            }
+                        );
+                    })(i);
+                }
+            });
+        };
+
+        window.Promise = PromiseImpl;
+    }
+
 
     var SOURCES = [
         {
@@ -242,7 +546,7 @@
         function nativeRequest(url, options) {
             options = options || {};
 
-            return new Promise(function (resolve) {
+            return new PromiseImpl(function (resolve) {
                 var net = newNetwork();
                 var started = Date.now();
                 var params = {
@@ -332,7 +636,7 @@
         function resetRows() {
             Object.keys(rows).forEach(function (key) {
                 if (key === 'device_platform' || key === 'device_lampa') return;
-                setRow(key, 'run', 'Проверка…', '');
+                setRow(key, 'run', tr('checking'), '');
             });
         }
 
@@ -344,22 +648,22 @@
             var head = $(
                 '<div class="lme-diag__hero">' +
                     '<div class="lme-diag__hero-title">LME Diagnostics</div>' +
-                    '<div class="lme-diag__hero-sub">Проверка именно с этого устройства</div>' +
+                    '<div class="lme-diag__hero-sub">' + escapeHtml(tr('hero_sub')) + '</div>' +
                 '</div>'
             );
             content.append(head);
 
-            var summary = addSection('Итог', 'summary');
-            addRow(summary, 'summary', 'Состояние');
+            var summary = addSection(tr('summary_section'), 'summary');
+            addRow(summary, 'summary', tr('state'));
 
-            var device = addSection('Устройство / Интернет', 'device');
-            addRow(device, 'device_platform', 'HTTP режим');
-            addRow(device, 'device_lampa', 'Lampa');
-            addRow(device, 'ip', 'Публичный IP');
-            addRow(device, 'country', 'Страна');
-            addRow(device, 'isp', 'Провайдер');
+            var device = addSection(tr('device_section'), 'device');
+            addRow(device, 'device_platform', tr('http_mode'));
+            addRow(device, 'device_lampa', tr('lampa'));
+            addRow(device, 'ip', tr('public_ip'));
+            addRow(device, 'country', tr('country'));
+            addRow(device, 'isp', tr('isp'));
 
-            var server = addSection('LampaME — серверная инфраструктура', 'server');
+            var server = addSection(tr('server_section'), 'server');
             addRow(server, 'srv_Bandera', 'Bandera');
             addRow(server, 'srv_Makhno API', 'Makhno API');
             addRow(server, 'srv_Makhno Base', 'Makhno Base');
@@ -367,12 +671,12 @@
             addRow(server, 'srv_Cache', 'Cache');
             addRow(server, 'srv_Proxy', 'Proxy');
 
-            var sources = addSection('Источники — проверка с устройства', 'sources');
+            var sources = addSection(tr('sources_section'), 'sources');
             SOURCES.forEach(function (source) {
                 addRow(sources, 'src_' + source.name, source.name);
             });
 
-            var players = addSection('Плееры / стримы — проверка с устройства', 'players');
+            var players = addSection(tr('players_section'), 'players');
             PROVIDERS.forEach(function (provider) {
                 addRow(players, 'pl_' + provider, provider);
             });
@@ -381,7 +685,7 @@
             var refresh = $(
                 '<div class="lme-diag__button selector">' +
                     '<span class="lme-diag__button-icon">↻</span>' +
-                    '<span>Проверить заново</span>' +
+                    '<span>' + escapeHtml(tr('check_again')) + '</span>' +
                 '</div>'
             );
 
@@ -403,28 +707,28 @@
             setRow(
                 'device_platform',
                 isAndroid ? 'ok' : 'warn',
-                isAndroid ? 'Android native HTTP' : 'XHR / platform HTTP',
+                isAndroid ? tr('android_native') : tr('platform_http'),
                 isAndroid
                     ? 'Lampa.Reguest.native → AndroidJS.httpReq'
-                    : 'На не-Android платформах внешние сайты могут ограничиваться CORS'
+                    : tr('cors_warning')
             );
 
             setRow(
                 'device_lampa',
                 'ok',
                 appVersion,
-                'Diagnostics plugin v' + PLUGIN_VERSION
+                tr('diagnostics_plugin') + PLUGIN_VERSION
             );
         }
 
         function checkPublicIp(token) {
             function tryService(index) {
-                if (token !== runToken) return Promise.resolve(false);
+                if (token !== runToken) return PromiseImpl.resolve(false);
                 if (index >= IP_SERVICES.length) {
-                    setRow('ip', 'bad', 'Недоступно', 'Не удалось определить внешний IP');
-                    setRow('country', 'bad', 'Недоступно', '');
-                    setRow('isp', 'bad', 'Недоступно', '');
-                    return Promise.resolve(false);
+                    setRow('ip', 'bad', tr('unavailable'), tr('ip_unavailable'));
+                    setRow('country', 'bad', tr('unavailable'), '');
+                    setRow('isp', 'bad', tr('unavailable'), '');
+                    return PromiseImpl.resolve(false);
                 }
 
                 return nativeRequest(IP_SERVICES[index], { dataType: 'text', timeout: 8000 })
@@ -444,7 +748,7 @@
                         if (data.connection) isp = data.connection.isp || data.connection.org || '';
                         if (!isp) isp = data.org || '';
 
-                        setRow('ip', 'ok', data.ip, 'Ответ ' + res.ms + ' ms');
+                        setRow('ip', 'ok', data.ip, tr('response') + ' ' + res.ms + ' ms');
                         setRow(
                             'country',
                             'ok',
@@ -460,7 +764,7 @@
         }
 
         function checkLampaMeStatus(token) {
-            return Promise.all([
+            return PromiseImpl.all([
                 nativeRequest(LAMPAME_CONFIG, { dataType: 'text', timeout: 8000 }),
                 nativeRequest(LAMPAME_HEARTBEAT, { dataType: 'text', timeout: 8000 })
             ]).then(function (responses) {
@@ -471,7 +775,7 @@
 
                 if (!cfgRes.ok || !hbRes.ok) {
                     ['Bandera', 'Makhno API', 'Makhno Base', 'Service', 'Cache', 'Proxy'].forEach(function (name) {
-                        setRow('srv_' + name, 'bad', 'API недоступно', '');
+                        setRow('srv_' + name, 'bad', tr('api_unavailable'), '');
                     });
                     return false;
                 }
@@ -481,7 +785,7 @@
 
                 if (!cfg || !cfg.publicGroupList || !hb || !hb.heartbeatList) {
                     ['Bandera', 'Makhno API', 'Makhno Base', 'Service', 'Cache', 'Proxy'].forEach(function (name) {
-                        setRow('srv_' + name, 'bad', 'Ошибка данных', '');
+                        setRow('srv_' + name, 'bad', tr('data_error'), '');
                     });
                     return false;
                 }
@@ -497,7 +801,7 @@
                         var uptime = hb.uptimeList ? hb.uptimeList[String(monitor.id) + '_24'] : null;
 
                         if (!latest) {
-                            setRow('srv_' + name, 'warn', 'Нет heartbeat', monitor.type || '');
+                            setRow('srv_' + name, 'warn', tr('no_heartbeat'), monitor.type || '');
                             return;
                         }
 
@@ -520,7 +824,7 @@
                 });
 
                 ['Bandera', 'Makhno API', 'Makhno Base', 'Service', 'Cache', 'Proxy'].forEach(function (name) {
-                    if (!found[name]) setRow('srv_' + name, 'warn', 'Не опубликован', '');
+                    if (!found[name]) setRow('srv_' + name, 'warn', tr('not_published'), '');
                 });
 
                 return true;
@@ -531,13 +835,13 @@
             var providerRecords = [];
             var sourceResults = {};
 
-            var chain = Promise.resolve();
+            var chain = PromiseImpl.resolve();
 
             SOURCES.forEach(function (source) {
                 chain = chain.then(function () {
                     if (token !== runToken) return false;
 
-                    setRow('src_' + source.name, 'run', 'Проверка…', source.page);
+                    setRow('src_' + source.name, 'run', tr('checking'), source.page);
 
                     return nativeRequest(source.page, { dataType: 'text' })
                         .then(function (pageRes) {
@@ -547,7 +851,7 @@
                             var fetchPromise;
 
                             if (fetchUrl === source.page && pageRes.ok) {
-                                fetchPromise = Promise.resolve(pageRes);
+                                fetchPromise = PromiseImpl.resolve(pageRes);
                             } else {
                                 fetchPromise = nativeRequest(fetchUrl, { dataType: 'text' });
                             }
@@ -605,8 +909,8 @@
 
                                 var detail = [];
                                 detail.push(pageRes.ms + ' ms');
-                                if (providerNames.length) detail.push('player: ' + providerNames.join(', '));
-                                if (!probeRes.ok && fetchUrl !== source.page) detail.push('probe failed');
+                                if (providerNames.length) detail.push(tr('player_prefix') + providerNames.join(', '));
+                                if (!probeRes.ok && fetchUrl !== source.page) detail.push(tr('probe_failed'));
 
                                 setRow('src_' + source.name, state, value, detail.join(' · '));
 
@@ -662,15 +966,15 @@
         }
 
         function checkProvider(provider, records, token) {
-            if (token !== runToken) return Promise.resolve(false);
+            if (token !== runToken) return PromiseImpl.resolve(false);
 
             var sample = bestSample(records, provider);
             if (!sample) {
-                setRow('pl_' + provider, 'warn', 'NOT FOUND', 'На проверочных страницах URL плеера не найден');
-                return Promise.resolve(false);
+                setRow('pl_' + provider, 'warn', 'NOT FOUND', tr('player_not_found_detail'));
+                return PromiseImpl.resolve(false);
             }
 
-            setRow('pl_' + provider, 'run', 'Проверка…', sample);
+            setRow('pl_' + provider, 'run', tr('checking'), sample);
 
             if (/\.(?:m3u8|mp4)(?:\?|$)/i.test(sample)) {
                 return testDirectStream(sample, provider).then(function (res) {
@@ -689,16 +993,16 @@
             var referer = providerReferer(provider);
 
             function tryCandidate(index) {
-                if (token !== runToken) return Promise.resolve(false);
+                if (token !== runToken) return PromiseImpl.resolve(false);
 
                 if (index >= candidates.length) {
                     setRow(
                         'pl_' + provider,
                         'warn',
-                        'STREAM NOT FOUND',
-                        'Плеер доступен, но URL m3u8/mp4 не извлечён; возможен GEO/anti-bot'
+                        tr('stream_not_found'),
+                        tr('stream_not_found_detail')
                     );
-                    return Promise.resolve(false);
+                    return PromiseImpl.resolve(false);
                 }
 
                 var headers = {};
@@ -725,7 +1029,7 @@
                             streamRes.ok ? 'ok' : 'bad',
                             streamRes.ok ? 'OK' : 'FAIL',
                             streamRes.ok
-                                ? ('stream ' + streamRes.ms + ' ms')
+                                ? (tr('stream_label') + ' ' + streamRes.ms + ' ms')
                                 : ('stream: ' + streamRes.error)
                         );
 
@@ -738,7 +1042,7 @@
         }
 
         function checkPlayers(records, token) {
-            var chain = Promise.resolve();
+            var chain = PromiseImpl.resolve();
 
             PROVIDERS.forEach(function (provider) {
                 chain = chain.then(function () {
@@ -775,11 +1079,11 @@
             var warn = srv.warn + src.warn + pl.warn;
 
             if (bad > 0) {
-                setSummary('bad', 'Есть ошибки', bad + ' ошибок · ' + warn + ' предупреждений');
+                setSummary('bad', tr('errors_found'), tr('errors_label') + ': ' + bad + ' · ' + tr('warnings_label') + ': ' + warn);
             } else if (warn > 0) {
-                setSummary('warn', 'Есть предупреждения', warn + ' проверок требуют внимания');
+                setSummary('warn', tr('warnings_found'), warn + ' ' + tr('checks_attention'));
             } else {
-                setSummary('ok', 'Всё доступно', 'Серверы, источники и плееры отвечают');
+                setSummary('ok', tr('all_available'), tr('all_respond'));
             }
         }
 
@@ -797,13 +1101,13 @@
             var token = runToken;
 
             resetRows();
-            setSummary('run', 'Проверка…', 'Не закрывайте экран');
+            setSummary('run', tr('checking'), tr('dont_close'));
 
             try { self.activity.loader(true); } catch (e) {}
 
             var providerRecords = [];
 
-            Promise.all([
+            PromiseImpl.all([
                 checkPublicIp(token),
                 checkLampaMeStatus(token),
                 checkSources(token).then(function (result) {
@@ -825,7 +1129,7 @@
 
                 running = false;
                 try { self.activity.loader(false); } catch (e) {}
-                setSummary('bad', 'Ошибка диагностики', err && err.message ? err.message : String(err));
+                setSummary('bad', tr('diagnostics_error'), err && err.message ? err.message : String(err));
                 try { self.activity.toggle(); } catch (e) {}
             });
         }
@@ -893,149 +1197,152 @@
     }
 
     function registerTemplates() {
-        Lampa.Template.add('lme_diagnostics_style', `
-            <style>
-                .lme-diag {
-                    padding: 0 1.4em 3em;
-                    max-width: 82em;
-                    margin: 0 auto;
-                    box-sizing: border-box;
-                }
-
-                .lme-diag__content {
-                    padding-bottom: 4em;
-                }
-
-                .lme-diag__hero {
-                    padding: 0.8em 0 1.2em;
-                }
-
-                .lme-diag__hero-title {
-                    font-size: 2em;
-                    font-weight: 700;
-                }
-
-                .lme-diag__hero-sub {
-                    opacity: 0.65;
-                    margin-top: 0.3em;
-                    font-size: 1.05em;
-                }
-
-                .lme-diag__section {
-                    margin: 0 0 1.5em;
-                }
-
-                .lme-diag__section-title {
-                    font-size: 1.25em;
-                    font-weight: 700;
-                    margin-bottom: 0.55em;
-                    opacity: 0.95;
-                }
-
-                .lme-diag__rows {
-                    display: grid;
-                    grid-template-columns: repeat(2, minmax(0, 1fr));
-                    gap: 0.55em;
-                }
-
-                .lme-diag__row {
-                    border-radius: 0.7em;
-                    padding: 0.85em 1em;
-                    background: rgba(255,255,255,0.07);
-                    border: 0.12em solid transparent;
-                    min-height: 3.6em;
-                    box-sizing: border-box;
-                }
-
-                .lme-diag__row.focus,
-                .lme-diag__button.focus {
-                    border-color: rgba(255,255,255,0.95);
-                    transform: scale(1.015);
-                }
-
-                .lme-diag__row-main {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    gap: 1em;
-                }
-
-                .lme-diag__label {
-                    font-size: 1.05em;
-                    font-weight: 600;
-                    min-width: 0;
-                }
-
-                .lme-diag__value {
-                    flex-shrink: 0;
-                    font-size: 0.95em;
-                    font-weight: 700;
-                    border-radius: 999px;
-                    padding: 0.25em 0.7em;
-                    background: rgba(255,255,255,0.10);
-                }
-
-                .lme-diag__detail {
-                    opacity: 0.58;
-                    font-size: 0.78em;
-                    margin-top: 0.45em;
-                    white-space: normal;
-                    overflow-wrap: anywhere;
-                }
-
-                .lme-diag__row.is-ok .lme-diag__value {
-                    background: rgba(53, 199, 89, 0.24);
-                }
-
-                .lme-diag__row.is-bad .lme-diag__value {
-                    background: rgba(255, 69, 58, 0.26);
-                }
-
-                .lme-diag__row.is-warn .lme-diag__value {
-                    background: rgba(255, 159, 10, 0.28);
-                }
-
-                .lme-diag__row.is-run .lme-diag__value {
-                    background: rgba(10, 132, 255, 0.25);
-                }
-
-                .lme-diag__actions {
-                    padding: 0.3em 0 1em;
-                }
-
-                .lme-diag__button {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 0.55em;
-                    border: 0.12em solid transparent;
-                    background: rgba(255,255,255,0.12);
-                    border-radius: 0.7em;
-                    padding: 0.85em 1.15em;
-                    font-weight: 700;
-                }
-
-                .lme-diag__button-icon {
-                    font-size: 1.35em;
-                    line-height: 1;
-                }
-
-                @media (max-width: 800px) {
-                    .lme-diag__rows {
-                        grid-template-columns: 1fr;
-                    }
-
-                    .lme-diag {
-                        padding-left: 0.8em;
-                        padding-right: 0.8em;
-                    }
-                }
-            </style>
-        `);
+        Lampa.Template.add('lme_diagnostics_style', [
+            '            <style>',
+            '                .lme-diag {',
+            '                    padding: 0 1.4em 3em;',
+            '                    max-width: 82em;',
+            '                    margin: 0 auto;',
+            '                    box-sizing: border-box;',
+            '                }',
+            '',
+            '                .lme-diag__content {',
+            '                    padding-bottom: 4em;',
+            '                }',
+            '',
+            '                .lme-diag__hero {',
+            '                    padding: 0.8em 0 1.2em;',
+            '                }',
+            '',
+            '                .lme-diag__hero-title {',
+            '                    font-size: 2em;',
+            '                    font-weight: 700;',
+            '                }',
+            '',
+            '                .lme-diag__hero-sub {',
+            '                    opacity: 0.65;',
+            '                    margin-top: 0.3em;',
+            '                    font-size: 1.05em;',
+            '                }',
+            '',
+            '                .lme-diag__section {',
+            '                    margin: 0 0 1.5em;',
+            '                }',
+            '',
+            '                .lme-diag__section-title {',
+            '                    font-size: 1.25em;',
+            '                    font-weight: 700;',
+            '                    margin-bottom: 0.55em;',
+            '                    opacity: 0.95;',
+            '                }',
+            '',
+            '                .lme-diag__rows {',
+            '                    display: block;',
+            '                }',
+            '',
+            '                .lme-diag__row {',
+            '                    margin-bottom: 0.55em;',
+            '                    border-radius: 0.7em;',
+            '                    padding: 0.85em 1em;',
+            '                    background: rgba(255,255,255,0.07);',
+            '                    border: 0.12em solid transparent;',
+            '                    min-height: 3.6em;',
+            '                    box-sizing: border-box;',
+            '                }',
+            '',
+            '                .lme-diag__row.focus,',
+            '                .lme-diag__button.focus {',
+            '                    border-color: rgba(255,255,255,0.95);',
+            '                    transform: scale(1.015);',
+            '                }',
+            '',
+            '                .lme-diag__row-main {',
+            '                    display: -webkit-box;',
+            '                    display: -webkit-flex;',
+            '                    display: flex;',
+            '                    -webkit-box-align: center;',
+            '                    -webkit-align-items: center;',
+            '                    align-items: center;',
+            '                    -webkit-box-pack: justify;',
+            '                    -webkit-justify-content: space-between;',
+            '                    justify-content: space-between;',
+            '                }',
+            '',
+            '                .lme-diag__label {',
+            '                    font-size: 1.05em;',
+            '                    font-weight: 600;',
+            '                    min-width: 0;',
+            '                }',
+            '',
+            '                .lme-diag__value {',
+            '                    margin-left: 1em;',
+            '                    -webkit-flex-shrink: 0;',
+            '                    flex-shrink: 0;',
+            '                    font-size: 0.95em;',
+            '                    font-weight: 700;',
+            '                    border-radius: 999px;',
+            '                    padding: 0.25em 0.7em;',
+            '                    background: rgba(255,255,255,0.10);',
+            '                }',
+            '',
+            '                .lme-diag__detail {',
+            '                    opacity: 0.58;',
+            '                    font-size: 0.78em;',
+            '                    margin-top: 0.45em;',
+            '                    white-space: normal;',
+            '                    word-wrap: break-word;',
+            '                    overflow-wrap: break-word;',
+            '                }',
+            '',
+            '                .lme-diag__row.is-ok .lme-diag__value {',
+            '                    background: rgba(53, 199, 89, 0.24);',
+            '                }',
+            '',
+            '                .lme-diag__row.is-bad .lme-diag__value {',
+            '                    background: rgba(255, 69, 58, 0.26);',
+            '                }',
+            '',
+            '                .lme-diag__row.is-warn .lme-diag__value {',
+            '                    background: rgba(255, 159, 10, 0.28);',
+            '                }',
+            '',
+            '                .lme-diag__row.is-run .lme-diag__value {',
+            '                    background: rgba(10, 132, 255, 0.25);',
+            '                }',
+            '',
+            '                .lme-diag__actions {',
+            '                    padding: 0.3em 0 1em;',
+            '                }',
+            '',
+            '                .lme-diag__button {',
+            '                    display: inline-block;',
+            '                    border: 0.12em solid transparent;',
+            '                    background: rgba(255,255,255,0.12);',
+            '                    border-radius: 0.7em;',
+            '                    padding: 0.85em 1.15em;',
+            '                    font-weight: 700;',
+            '                }',
+            '',
+            '                .lme-diag__button-icon {',
+            '                    font-size: 1.35em;',
+            '                    line-height: 1;',
+            '                }',
+            '',
+            '                @media (max-width: 800px) {',
+            '                    .lme-diag {',
+            '                        padding-left: 0.8em;',
+            '                        padding-right: 0.8em;',
+            '                    }',
+            '                }',
+            '            </style>'
+        ].join('\n'));
 
         $('body').append(Lampa.Template.get('lme_diagnostics_style', {}, true));
     }
 
     function openDiagnostics() {
+        MENU_TITLE = tr('menu_title');
+
         Lampa.Activity.push({
             url: '',
             title: MENU_TITLE,
@@ -1046,6 +1353,7 @@
 
     function addMenu(attempt) {
         attempt = attempt || 0;
+        MENU_TITLE = tr('menu_title');
 
         if ($('.menu__item[data-action="' + COMPONENT + '"]').length) return;
 
@@ -1091,7 +1399,7 @@
 
         try {
             if (Lampa.Noty && Lampa.Noty.show) {
-                Lampa.Noty.show('LME Diagnostics v' + PLUGIN_VERSION + ' загружен', { time: 5000 });
+                Lampa.Noty.show('LME Diagnostics v' + PLUGIN_VERSION + ' ' + tr('loaded'), { time: 5000 });
             }
         } catch (e) {}
 
