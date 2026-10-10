@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - ".github/workflows/mirror-crosswalk-plugins.yml"
+      - "scripts/build-crosswalk-plugins.py"
 
 permissions:
   contents: write
@@ -18,79 +19,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download current upstream plugins
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 3 \
-            https://raw.githubusercontent.com/lampame/main/main/Nightingale/Nightingale.js \
-            --output /tmp/Nightingale.js
-          curl --fail --location --retry 3 \
-            https://raw.githubusercontent.com/lampame/main/main/tsTracksProbe/tsTracksProbe.js \
-            --output /tmp/tsTracksProbe.js
-          test -s /tmp/Nightingale.js
-          test -s /tmp/tsTracksProbe.js
-
-      - name: Build Nightingale for Crosswalk 5
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          source = Path('/tmp/Nightingale.js').read_text(encoding='utf-8')
-          marker = "  'use strict';\n"
-          if marker not in source:
-              raise SystemExit('Unexpected Nightingale source format: strict-mode marker not found')
-
-          polyfill = r'''
-
-  /* Crosswalk 5 / Chromium 34 compatibility: Promise.prototype.finally
-     is not available in this runtime, while the upstream plugin uses it. */
-  if (typeof Promise !== 'undefined' && !Promise.prototype['finally']) {
-    Promise.prototype['finally'] = function (callback) {
-      var PromiseCtor = this.constructor || Promise;
-      return this.then(
-        function (value) {
-          return PromiseCtor.resolve(callback()).then(function () {
-            return value;
-          });
-        },
-        function (reason) {
-          return PromiseCtor.resolve(callback()).then(function () {
-            throw reason;
-          });
-        }
-      );
-    };
-  }
-'''
-
-          header = '''/*
- * Nightingale - Crosswalk 5 compatibility build for Proton4/lampac.
- * Upstream: https://github.com/lampame/main/blob/main/Nightingale/Nightingale.js
- * Compatibility change: Promise.prototype.finally polyfill for Chromium 34.
- */
-'''
-          output = header + source.replace(marker, marker + polyfill, 1)
-          Path('nightingale-xwalk5.js').write_text(output, encoding='utf-8')
-          PY
-
-      - name: Mirror TS Tracks Probe unchanged
-        run: |
-          cat > tsTracksProbe.js <<'HEADER'
-          /*
-           * Mirrored for Proton4/lampac.
-           * Upstream: https://github.com/lampame/main/blob/main/tsTracksProbe/tsTracksProbe.js
-           * Source code is unchanged apart from this provenance header.
-           */
-          HEADER
-          cat /tmp/tsTracksProbe.js >> tsTracksProbe.js
+      - name: Build compatible plugin files
+        run: python3 scripts/build-crosswalk-plugins.py
 
       - name: Validate generated files
         run: |
           set -euo pipefail
           test -s nightingale-xwalk5.js
           test -s tsTracksProbe.js
-          grep -q "Promise.prototype\['finally'\]" nightingale-xwalk5.js
-          grep -q "TS Tracks Probe" tsTracksProbe.js
+          grep -Fq "Promise.prototype['finally']" nightingale-xwalk5.js
+          grep -Fq "TS Tracks Probe" tsTracksProbe.js
 
       - name: Commit generated files when changed
         run: |
