@@ -4,7 +4,7 @@
     "chrome": "34"
   },
   "syntax": "ES5",
-  "build": "r1",
+  "build": "r2",
   "source": {
     "requested_url": "https://cevamnelampaplagin.github.io/plugins/easytorrent2.1.0.5.js",
     "pinned_url": "https://raw.githubusercontent.com/cevamnelampaplagin/plugins/1b492d8c418703ce2469742f3eb951e967896000/easytorrent2.1.0.5.js",
@@ -14,12 +14,12 @@
     "bytes": 135025
   },
   "output": {
-    "sha256": "2f7a73d5ef1bb33cc88f81985c8fe3de4af48781ae5436a72db05efdb8e68742",
-    "bytes": 747806
+    "sha256": "81009a19603a0ca88c2fc55f681313e33989278ec1610dce6e8de3745e0a87be",
+    "bytes": 747398
   },
   "transformations": [
-    "Babel preset-env, Chromium 34 target, forceAllTransforms",
-    "Bundled core-js and whatwg-fetch; no runtime library CDN",
+    "Babel preset-env, Chromium 34 target, forceAllTransforms applied only to the plugin",
+    "Bundled unmodified ES5 core-js and whatwg-fetch; no runtime library CDN",
     "Dynamic Unicode regexp compiled at source line 671",
     "Dynamic Unicode regexp compiled at source line 1522",
     "Duplicate-load guard for the compatible file"
@@ -27,8 +27,9 @@
   "tests": [
     "Original source verified against immutable Git blob SHA-1",
     "Confirmed original source does not parse as ES5",
+    "All bundled dependencies pass ES5 syntax validation without re-transpilation",
     "Entire final standalone minified file parses as ECMAScript 5",
-    "Dynamic Unicode boundary transformation checked with regexp samples"
+    "Dynamic Unicode boundary transformation checked with matching and nonmatching regexp samples"
   ],
   "limitations": [
     "Static compilation and syntax tests, not physical TV Box testing",
