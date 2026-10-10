@@ -1,13 +1,12 @@
 /*
  * LF2 - Lampac Card Filter layout/focus update
  *
- * Loads LF core, then adds:
- * - a fixed season area with its own scroll;
- * - an independent source scroll;
- * - an independent voice scroll;
- * - remembered season label while Lampac asks to choose a matching series;
- * - mouse-focus protection for desktop browsers;
- * - automatic scroll-to-focused-item for Android TV / remote navigation.
+ * Fixes the LF panel for desktop mouse and Android TV:
+ * - fixed season block with its own scroll;
+ * - independent source and voice scroll areas;
+ * - no repeated DOM reordering;
+ * - mouse-safe focus synchronization;
+ * - remembered season label while Lampac asks to choose a matching series.
  *
  * Crosswalk 5 / Chromium 34 compatible: ES5 syntax only.
  * Load LF2 only. Do not load lf.js or older Lampac filter plugins separately.
@@ -15,13 +14,14 @@
 (function () {
     'use strict';
 
-    var VERSION = '2.0.0';
+    var VERSION = '2.1.0';
     var FLAG = 'lf2_layout_plugin';
     var CORE_URL = 'https://proton4.github.io/lampac/lf.js?v=1';
     var SEASON_STORAGE = 'lampac_src_filter_pinned_seasons';
 
     var styleNode = null;
     var observer = null;
+    var observedBody = null;
     var normalizeTimer = null;
     var normalizing = false;
     var waitTimer = null;
@@ -42,6 +42,9 @@
 
     function markMouse() {
         mouseActiveUntil = Date.now() + 2500;
+
+        var panel = $('#lf-panel');
+        if (panel.length) panel.addClass('lf2-mouse-active');
     }
 
     function mouseIsActive() {
@@ -110,20 +113,21 @@
             '}' +
             '#lf-panel .lf-section{' +
                 'display:flex!important;flex-direction:column!important;' +
-                'min-height:0!important;margin:0!important;' +
+                'min-height:0!important;margin:0!important;overflow:hidden!important;' +
             '}' +
             '#lf-panel .lf-section-title{' +
                 'flex:0 0 auto!important;padding:.55em .55em .48em!important;' +
                 'background:#111!important;position:relative!important;z-index:2!important;' +
             '}' +
             '#lf-panel .lf-scroll{' +
-                'min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;' +
-                'padding:0 0 .45em 0!important;' +
+                'display:block!important;flex:1 1 auto!important;min-height:0!important;' +
+                'overflow-y:auto!important;overflow-x:hidden!important;' +
+                'padding:0 0 .45em 0!important;pointer-events:auto!important;' +
                 '-webkit-overflow-scrolling:touch;' +
             '}' +
             '#lf-panel .lf-section-season{' +
-                'flex:0 1 29%!important;max-height:29%!important;' +
-                'border-bottom:1px solid rgba(255,255,255,.10);' +
+                'flex:0 0 31%!important;height:31%!important;min-height:9.5em!important;' +
+                'max-height:31%!important;border-bottom:1px solid rgba(255,255,255,.10);' +
                 'padding-bottom:.28em!important;margin-bottom:.28em!important;' +
             '}' +
             '#lf-panel .lf-section-source{' +
@@ -132,18 +136,22 @@
                 'padding-bottom:.28em!important;margin-bottom:.28em!important;' +
             '}' +
             '#lf-panel .lf-section-voice{' +
-                'flex:0 1 27%!important;max-height:27%!important;' +
-                'border-bottom:1px solid rgba(255,255,255,.08);' +
+                'flex:0 0 24%!important;height:24%!important;min-height:6.2em!important;' +
+                'max-height:24%!important;border-bottom:1px solid rgba(255,255,255,.08);' +
                 'padding-bottom:.2em!important;margin-bottom:.2em!important;' +
             '}' +
             '#lf-panel .lf-section-actions{' +
                 'flex:0 0 auto!important;max-height:7.2em!important;' +
             '}' +
+            '#lf-panel .lf-section-memory{' +
+                'flex:0 0 auto!important;height:auto!important;min-height:5.2em!important;' +
+                'max-height:7.3em!important;' +
+            '}' +
             '#lf-panel .lf-section-memory .lf-item{' +
                 'opacity:.92;pointer-events:none;' +
             '}' +
             '#lf-panel .lf-item{' +
-                'margin:.15em 0!important;' +
+                'margin:.15em 0!important;pointer-events:auto!important;' +
             '}' +
             '#lf-panel .lf-item:hover{' +
                 'background:rgba(255,255,255,.15);' +
@@ -156,8 +164,14 @@
                 'outline:.14em solid rgba(255,255,255,.85);outline-offset:-.10em;' +
             '}' +
             '@media screen and (max-height:650px){' +
-                '#lf-panel .lf-section-season{flex-basis:25%!important;max-height:25%!important;}' +
-                '#lf-panel .lf-section-voice{flex-basis:22%!important;max-height:22%!important;}' +
+                '#lf-panel .lf-section-season{' +
+                    'flex-basis:27%!important;height:27%!important;' +
+                    'min-height:7.8em!important;max-height:27%!important;' +
+                '}' +
+                '#lf-panel .lf-section-voice{' +
+                    'flex-basis:20%!important;height:20%!important;' +
+                    'min-height:5.2em!important;max-height:20%!important;' +
+                '}' +
             '}';
 
         document.head.appendChild(styleNode);
@@ -175,9 +189,6 @@
         var season = normalizeText(tr('torrent_serial_season'));
         var source = normalizeText(tr('settings_rest_source'));
         var voice = normalizeText(tr('torrent_parser_voice'));
-        var actionsRu = normalizeText('Действия');
-        var actionsUk = normalizeText('Дії');
-        var actionsEn = normalizeText('Actions');
 
         if (title === season || title.indexOf('season') !== -1 || title.indexOf('сезон') !== -1) {
             return 'season';
@@ -195,12 +206,18 @@
         if (
             title === voice ||
             title.indexOf('voice') !== -1 ||
-            title.indexOf('озвуч') !== -1
+            title.indexOf('translation') !== -1 ||
+            title.indexOf('озвуч') !== -1 ||
+            title.indexOf('перевод') !== -1
         ) {
             return 'voice';
         }
 
-        if (title === actionsRu || title === actionsUk || title === actionsEn) {
+        if (
+            title === normalizeText('Действия') ||
+            title === normalizeText('Дії') ||
+            title === normalizeText('Actions')
+        ) {
             return 'actions';
         }
 
@@ -247,16 +264,15 @@
         var items = section.find('.lf-item');
         var scroll = section.children('.lf-scroll').first();
 
-        items.off('hover:focus.lf2 mouseenter.lf2');
+        items.off('.lf2');
         items.on('hover:focus.lf2', function () {
             ensureVisible($(this));
         });
         items.on('mouseenter.lf2', function () {
             markMouse();
-            ensureVisible($(this));
         });
 
-        scroll.off('wheel.lf2');
+        scroll.off('.lf2');
         scroll.on('wheel.lf2', function (event) {
             markMouse();
             if (event && event.stopPropagation) event.stopPropagation();
@@ -287,13 +303,6 @@
         var panel = $('#lf-panel');
         var body;
         var sections;
-        var order = {
-            season: 1,
-            source: 2,
-            voice: 3,
-            actions: 4,
-            other: 5
-        };
 
         normalizeTimer = null;
 
@@ -307,6 +316,8 @@
 
             if (!body.length) return;
 
+            if (observer) observer.disconnect();
+
             sections = body.children('.lf-section');
 
             sections.each(function () {
@@ -318,8 +329,7 @@
                         'lf-section-season lf-section-source lf-section-voice ' +
                         'lf-section-actions lf-section-other'
                     )
-                    .addClass('lf-section-' + type)
-                    .attr('data-lf2-order', order[type] || 5);
+                    .addClass('lf-section-' + type);
 
                 ensureScroll(section);
                 bindSectionFocus(section);
@@ -327,23 +337,23 @@
 
             createSeasonMemorySection(body);
 
-            sections = body.children('.lf-section');
-            sections.sort(function (a, b) {
-                return parseInt($(a).attr('data-lf2-order') || '5', 10) -
-                    parseInt($(b).attr('data-lf2-order') || '5', 10);
-            });
-            body.append(sections);
-
             if (mouseIsActive()) panel.addClass('lf2-mouse-active');
             else panel.removeClass('lf2-mouse-active');
         } finally {
+            if (observer && observedBody) {
+                observer.observe(observedBody, {
+                    childList: true,
+                    subtree: false
+                });
+            }
+
             normalizing = false;
         }
     }
 
     function scheduleNormalize() {
         clearTimeout(normalizeTimer);
-        normalizeTimer = setTimeout(normalizePanel, 20);
+        normalizeTimer = setTimeout(normalizePanel, 25);
     }
 
     function observePanel() {
@@ -355,15 +365,21 @@
         body = panel.querySelector('.lf-body');
         if (!body) return false;
 
+        if (observedBody === body && observer) {
+            scheduleNormalize();
+            return true;
+        }
+
         if (observer) observer.disconnect();
 
+        observedBody = body;
         observer = new MutationObserver(function () {
             scheduleNormalize();
         });
 
         observer.observe(body, {
             childList: true,
-            subtree: true
+            subtree: false
         });
 
         scheduleNormalize();
@@ -394,8 +410,7 @@
             } catch (e) {}
 
             if (mouseIsActive() && appendIsLf) {
-                ignoreFocusUntil = Date.now() + 140;
-                return;
+                ignoreFocusUntil = Date.now() + 180;
             }
 
             return originalSet.apply(controller, arguments);
