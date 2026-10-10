@@ -6,7 +6,9 @@
  * - persistent remembered-season row during source/series transitions;
  * - deterministic Reset behavior: first season + default/first translation;
  * - current source is preserved by Reset;
- * - clearer Reset label.
+ * - clearer Reset label;
+ * - removes duplicate remembered-season block as soon as the real season list exists;
+ * - reserves visible space for translation and reset sections.
  *
  * Crosswalk 5 / Chromium 34 compatible: ES5 syntax only.
  * Load LF4 only. Do not also load LF/LF2/LF3 or older Lampac filters.
@@ -14,7 +16,7 @@
 (function () {
     'use strict';
 
-    var VERSION = '4.0.0';
+    var VERSION = '4.1.0';
     var FLAG = 'lf4_stability_plugin';
     var CORE_URL = 'https://proton4.github.io/lampac/lf3.js?v=2';
     var SEASON_STORAGE = 'lampac_src_filter_pinned_seasons';
@@ -165,6 +167,43 @@
         return 'First season and default audio; source stays selected';
     }
 
+
+    function injectLf4Style() {
+        if (document.getElementById('lf4-layout-style')) return;
+
+        var style = document.createElement('style');
+        style.id = 'lf4-layout-style';
+        style.type = 'text/css';
+        style.textContent =
+            '#lf-panel .lf-body{' +
+                'display:flex!important;flex-direction:column!important;overflow:hidden!important;' +
+            '}' +
+            '#lf-panel .lf-section-season:not(.lf-section-memory){' +
+                'flex:0 0 9.2em!important;max-height:9.2em!important;min-height:0!important;' +
+            '}' +
+            '#lf-panel .lf-section-memory{' +
+                'flex:0 0 4.1em!important;max-height:4.1em!important;min-height:0!important;' +
+            '}' +
+            '#lf-panel .lf-section-source{' +
+                'flex:1 1 auto!important;min-height:7.2em!important;max-height:none!important;' +
+            '}' +
+            '#lf-panel .lf-section-voice{' +
+                'flex:0 0 6.7em!important;max-height:6.7em!important;min-height:0!important;' +
+            '}' +
+            '#lf-panel .lf-section-actions{' +
+                'flex:0 0 2.9em!important;max-height:2.9em!important;min-height:2.9em!important;' +
+                'display:block!important;overflow:hidden!important;' +
+            '}' +
+            '#lf-panel .lf-section-actions .lf-scroll{' +
+                'height:2.8em!important;min-height:2.8em!important;display:block!important;' +
+            '}' +
+            '#lf-panel .lf-section-actions .lf-item{' +
+                'display:block!important;visibility:visible!important;opacity:1!important;' +
+            '}';
+
+        document.head.appendChild(style);
+    }
+
     function markMouse(event) {
         var target;
 
@@ -251,7 +290,20 @@
     }
 
     function seasonSection() {
+        var real = $('#lf-panel .lf-section-season').not('.lf-section-memory').first();
+
+        if (real.length) return real;
+
         return $('#lf-panel .lf-section-season').first();
+    }
+
+    function cleanupSeasonSections() {
+        var real = $('#lf-panel .lf-section-season').not('.lf-section-memory').first();
+        var memorySections = $('#lf-panel .lf-section-memory');
+
+        if (real.length && memorySections.length) {
+            memorySections.remove();
+        }
     }
 
     function voiceSection() {
@@ -272,6 +324,9 @@
         var row;
 
         if (!body || !body.length || !memory || !memory.label) return;
+
+        cleanupSeasonSections();
+        season = seasonSection();
 
         if (!season.length) {
             season = $('<div class="lf-section lf-section-season lf-section-memory"></div>');
@@ -413,7 +468,9 @@
         body = panel.find('.lf-body').first();
         if (!body.length) return false;
 
+        cleanupSeasonSections();
         ensureRememberedSeason();
+        cleanupSeasonSections();
         bindReset();
 
         if (!mouseActive()) {
@@ -497,6 +554,7 @@
     }
 
     function startPatch() {
+        injectLf4Style();
         bindMouse();
         patchController();
         waitForCore();
