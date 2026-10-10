@@ -1,0 +1,39 @@
+{
+  "file": "easytorrent2.1.0.5-xwalk5.js",
+  "target": {
+    "chrome": "34"
+  },
+  "syntax": "ES5",
+  "build": "r1",
+  "source": {
+    "requested_url": "https://cevamnelampaplagin.github.io/plugins/easytorrent2.1.0.5.js",
+    "pinned_url": "https://raw.githubusercontent.com/cevamnelampaplagin/plugins/1b492d8c418703ce2469742f3eb951e967896000/easytorrent2.1.0.5.js",
+    "commit": "1b492d8c418703ce2469742f3eb951e967896000",
+    "blob_sha1": "04ea78a6a1daa62e67a0a458519cada4873e07c5",
+    "sha256": "a79d27b174d838f15bfe93dff923eaf189ca19a59cb4e31f993f0cebe2ac3fea",
+    "bytes": 135025
+  },
+  "output": {
+    "sha256": "2f7a73d5ef1bb33cc88f81985c8fe3de4af48781ae5436a72db05efdb8e68742",
+    "bytes": 747806
+  },
+  "transformations": [
+    "Babel preset-env, Chromium 34 target, forceAllTransforms",
+    "Bundled core-js and whatwg-fetch; no runtime library CDN",
+    "Dynamic Unicode regexp compiled at source line 671",
+    "Dynamic Unicode regexp compiled at source line 1522",
+    "Duplicate-load guard for the compatible file"
+  ],
+  "tests": [
+    "Original source verified against immutable Git blob SHA-1",
+    "Confirmed original source does not parse as ES5",
+    "Entire final standalone minified file parses as ECMAScript 5",
+    "Dynamic Unicode boundary transformation checked with regexp samples"
+  ],
+  "limitations": [
+    "Static compilation and syntax tests, not physical TV Box testing",
+    "Actual Lampa UI, remote services and TLS/certificate trust still require device testing",
+    "Disable original EasyTorrent to avoid duplicate hooks",
+    "Original settings schema 2.1 and scoring logic retained"
+  ]
+}
