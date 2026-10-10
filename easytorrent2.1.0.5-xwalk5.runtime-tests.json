@@ -1,0 +1,23 @@
+{
+  "build": "2.1.0.5-xwalk5-r2",
+  "file": "easytorrent2.1.0.5-xwalk5.js",
+  "environment": "Offline Node.js VM, selected post-Chromium-34 APIs removed, mocked Lampa, DOM and XMLHttpRequest; NOT an actual Crosswalk executable",
+  "tests": [
+    "Plugin initializes without native Symbol, Map, Set, Promise, fetch and selected newer array/string/object APIs",
+    "Settings component, parameters and torrent/activity event listeners register",
+    "Movie scoring completes on seven Latin/Cyrillic titles, all scores finite",
+    "Patched result sort and filter complete and preserve expected result counts",
+    "TV season/episode scoring completes with Cyrillic titles and bracket episode ranges",
+    "Loading the same build twice does not duplicate component registration or Parser.get hooks",
+    "Bundled Promise/fetch/response.json completes using mocked XMLHttpRequest without external network"
+  ],
+  "notes": [
+    "Number.isFinite, Number.isNaN and Number.isInteger were retained because they are supported by the Chromium 34 target",
+    "An initial r1 Symbol bootstrap conflict was fixed in r2 by not re-transpiling core-js dependencies"
+  ],
+  "limitations": [
+    "This is not a complete old-browser emulator",
+    "No full upstream-vs-built semantic comparison",
+    "No real Lampa UI, physical TV Box, TLS/certificate, or remote Supabase service test"
+  ]
+}
