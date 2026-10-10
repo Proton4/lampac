@@ -1,4 +1,4 @@
-name: Mirror Crosswalk-compatible Lampa plugins
+name: Mirror TS Tracks Probe
 
 on:
   workflow_dispatch:
@@ -19,26 +19,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build compatible plugin files
+      - name: Build mirrored plugin file
         run: python3 scripts/build-crosswalk-plugins.py
 
-      - name: Validate generated files
+      - name: Validate generated file
         run: |
           set -euo pipefail
-          test -s nightingale-xwalk5.js
           test -s tsTracksProbe.js
-          grep -Fq "Promise.prototype['finally']" nightingale-xwalk5.js
           grep -Fq "TS Tracks Probe" tsTracksProbe.js
 
-      - name: Commit generated files when changed
+      - name: Commit generated file when changed
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add nightingale-xwalk5.js tsTracksProbe.js
+          git add tsTracksProbe.js
           if git diff --cached --quiet; then
-            echo "Generated plugin files are already current"
+            echo "tsTracksProbe.js is already current"
           else
-            git commit -m "Mirror Crosswalk-compatible Lampa plugins"
+            git commit -m "Mirror TS Tracks Probe"
             git push
           fi
