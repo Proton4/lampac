@@ -1,0 +1,51 @@
+name: Build EasyTorrent for Crosswalk
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/easytorrent-xwalk/build.cjs'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: easytorrent-xwalk-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned build and test dependencies
+        run: >-
+          npm install --prefix tools/easytorrent-xwalk --ignore-scripts --no-audit --no-fund --save-exact
+          @babel/core@7.28.5 @babel/preset-env@7.28.5 core-js@3.46.0
+          browserify@17.0.1 acorn@8.15.0 terser@5.44.1
+          whatwg-fetch@3.6.20 jsdom@22.1.0 regexpu-core@6.2.0
+      - name: Compile and test the standalone ES5 bundle
+        run: node tools/easytorrent-xwalk/build.cjs
+      - name: Commit verified bundle and build report
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add easytorrent2.1.0.5-xwalk5.js easytorrent2.1.0.5-xwalk5.build.json easytorrent2.1.0.5-xwalk5.LICENSES.txt tools/easytorrent-xwalk/package.json tools/easytorrent-xwalk/package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Build tested EasyTorrent 2.1.0.5 ES5 bundle for Chromium 34'
+            git push origin HEAD:main
+          fi
+      - name: Upload tested bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: easytorrent-xwalk5
+          path: |
+            easytorrent2.1.0.5-xwalk5.js
+            easytorrent2.1.0.5-xwalk5.build.json
+            easytorrent2.1.0.5-xwalk5.LICENSES.txt
+          retention-days: 30
