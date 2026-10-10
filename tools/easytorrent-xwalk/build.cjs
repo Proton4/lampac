@@ -47,8 +47,9 @@ function dynamicRegex({ types: t }) {
         }
         const flags = args[1].value;
         let rest = rewritePattern(pattern, flags, { unicodeFlag: 'transform', unicodePropertyEscapes: 'transform' });
-        // Test the constant boundary pattern without running the plugin.
+        // Compare Unicode boundaries with nonempty matching and nonmatching samples.
         const samples = ['abc', ' ukr ', 'Українська', 'ДБ', '2x2', 'Тест 1 сезон: 1-7 серії', 'Japanese 日本語', '123'];
+        markers.forEach(m => samples.push(m, ' ' + m + ' ', 'А' + m, m + 'Б', '(' + m + ')'));
         const native = new RegExp(pattern, flags);
         const compiled = new RegExp(rest, flags.replace('u', ''));
         samples.forEach(sample => { native.lastIndex = compiled.lastIndex = 0; assert.equal(compiled.test(sample), native.test(sample)); });
@@ -67,17 +68,15 @@ function dynamicRegex({ types: t }) {
     } } };
 }
 
-function compile(source, filename, usage) {
-    const options = {
-        targets: { chrome: '34' }, forceAllTransforms: true, bugfixes: true,
-        modules: 'commonjs', useBuiltIns: usage ? 'usage' : false
-    };
-    if (usage) options.corejs = { version: '3.46', proposals: false };
+function compile(source, filename) {
     return babel.transformSync(source, {
         filename, babelrc: false, configFile: false, sourceType: 'script',
         comments: false, compact: false,
-        plugins: usage ? [dynamicRegex] : [],
-        presets: [[presetEnv, options]]
+        plugins: [dynamicRegex],
+        presets: [[presetEnv, {
+            targets: { chrome: '34' }, forceAllTransforms: true, bugfixes: true,
+            modules: 'commonjs', useBuiltIns: 'usage', corejs: { version: '3.46', proposals: false }
+        }]]
     }).code;
 }
 function bundle(file) {
@@ -109,7 +108,7 @@ async function main() {
     const source = bytes.toString('utf8');
     assert.throws(() => acorn.parse(source, { ecmaVersion: 5 }));
     tests.push('Confirmed original source does not parse as ES5');
-    fs.writeFileSync(path.join(WORK, 'plugin.js'), compile(source, path.join(WORK, 'upstream.js'), true));
+    fs.writeFileSync(path.join(WORK, 'plugin.js'), compile(source, path.join(WORK, 'upstream.js')));
     fs.writeFileSync(path.join(WORK, 'entry.js'), [
         "require('core-js/es/symbol');",
         "require('core-js/es/promise');",
@@ -122,13 +121,17 @@ async function main() {
         "require('./plugin.js');"
     ].join('\n'));
     const bundled = await bundle(path.join(WORK, 'entry.js'));
-    const es5 = compile(bundled, path.join(WORK, 'bundle.js'), false);
-    const wrapper = '(function(w){if(w.EasyTorrentXWalk5&&w.EasyTorrentXWalk5.loaded)return;var state={build:"2.1.0.5-xwalk5-r1",target:"Chromium 34 / ES5",loaded:false};w.EasyTorrentXWalk5=state;try{' + es5 + '\nstate.loaded=true;}catch(e){state.error=String(e&&e.stack||e);throw e;}})(window);';
+    // core-js and the fetch UMD bundle already use ES5. Re-transpiling core-js
+    // with transform-typeof-symbol breaks Symbol's own feature detection.
+    // Validate the whole bundle instead of running Babel over dependencies.
+    acorn.parse(bundled, { ecmaVersion: 5, sourceType: 'script' });
+    tests.push('All bundled dependencies pass ES5 syntax validation without re-transpilation');
+    const wrapper = '(function(w){if(w.EasyTorrentXWalk5&&w.EasyTorrentXWalk5.loaded)return;var state={build:"2.1.0.5-xwalk5-r2",target:"Chromium 34 / ES5",loaded:false};w.EasyTorrentXWalk5=state;try{' + bundled + '\nstate.loaded=true;}catch(e){state.error=String(e&&e.stack||e);throw e;}})(window);';
     const minified = await terser.minify(wrapper, {
         ecma: 5, compress: { ecma: 5, passes: 2, unsafe: false }, mangle: true,
         format: { ecma: 5, ascii_only: true, comments: /^!/, max_line_len: 1000 }
     });
-    const header = '/*! EasyTorrent ' + NAME + '\n' +
+    const header = '/*! EasyTorrent ' + NAME + ' r2\n' +
         ' * Original: DarkestClouds (@darkestclouds). Ukrainian adaptation: cevamnelampaplagin.\n' +
         ' * Compatibility build: Proton4/lampac. Standalone ES5 + polyfills, target Chromium 34.\n' +
         ' * Source commit: ' + COMMIT + '; source blob: ' + BLOB + '\n' +
@@ -136,12 +139,12 @@ async function main() {
     const output = header + minified.code + '\n';
     acorn.parse(output, { ecmaVersion: 5, sourceType: 'script' });
     tests.push('Entire final standalone minified file parses as ECMAScript 5');
-    tests.push('Dynamic Unicode boundary transformation checked with regexp samples');
+    tests.push('Dynamic Unicode boundary transformation checked with matching and nonmatching regexp samples');
     const report = {
-        file: NAME + '.js', target: { chrome: '34' }, syntax: 'ES5', build: 'r1',
+        file: NAME + '.js', target: { chrome: '34' }, syntax: 'ES5', build: 'r2',
         source: { requested_url: 'https://cevamnelampaplagin.github.io/plugins/easytorrent2.1.0.5.js', pinned_url: URL, commit: COMMIT, blob_sha1: BLOB, sha256: sha256(bytes), bytes: bytes.length },
         output: { sha256: sha256(output), bytes: Buffer.byteLength(output) },
-        transformations: ['Babel preset-env, Chromium 34 target, forceAllTransforms', 'Bundled core-js and whatwg-fetch; no runtime library CDN', ...modifications, 'Duplicate-load guard for the compatible file'],
+        transformations: ['Babel preset-env, Chromium 34 target, forceAllTransforms applied only to the plugin', 'Bundled unmodified ES5 core-js and whatwg-fetch; no runtime library CDN', ...modifications, 'Duplicate-load guard for the compatible file'],
         tests,
         limitations: ['Static compilation and syntax tests, not physical TV Box testing', 'Actual Lampa UI, remote services and TLS/certificate trust still require device testing', 'Disable original EasyTorrent to avoid duplicate hooks', 'Original settings schema 2.1 and scoring logic retained']
     };
