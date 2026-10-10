@@ -1,23 +1,31 @@
 /*
- * Lampac Source Filter + Sticky Season
+ * Lampac Source Filter + Auto Sticky Season
  * Based on Levende's lampac-src-filter.js.
  *
  * Crosswalk 5 / Chromium 34 compatible: ES5 syntax only.
  *
  * Extra features:
- * - pin the currently selected season for a movie/series;
- * - carry that season to another Lampac source (balancer);
- * - reopen the expanded filter after a source switch;
- * - focus the source row after automatic reopening.
+ * - automatically remembers the last explicitly selected season per title;
+ * - carries that season to another Lampac source (balancer);
+ * - reopens the filter after a season or source change;
+ * - immediately opens the source list, minimizing clicks while comparing sources.
  */
 (function () {
     'use strict';
 
     var FLAG = 'lampac_src_filter_sticky_plugin';
-    var PIN_STORAGE = 'lampac_src_filter_pinned_seasons';
+
+    /*
+     * Keep the original key for backward compatibility with the first
+     * test build that used manual "pin season".
+     */
+    var SEASON_STORAGE = 'lampac_src_filter_pinned_seasons';
+
     var sourceSwitchArmed = null;
+    var seasonSelectArmed = null;
     var reopenTimer = null;
     var autoOpening = false;
+    var autoOpenSources = false;
     var internalStorageWrite = false;
 
     function activeActivity() {
@@ -54,14 +62,20 @@
         return String(active.movie.id);
     }
 
-    function pinMovieKey(active) {
+    function seasonMovieKey(active) {
         if (!active || !active.movie) return '';
 
         var movie = active.movie;
         var id = movie.tmdb_id || movie.id;
 
         if (!id) {
-            id = Lampa.Utils.hash(movie.original_name || movie.original_title || movie.name || movie.title || '');
+            id = Lampa.Utils.hash(
+                movie.original_name ||
+                movie.original_title ||
+                movie.name ||
+                movie.title ||
+                ''
+            );
         }
 
         return String(movie.source || 'tmdb') + ':' + String(id);
@@ -77,33 +91,24 @@
         return value;
     }
 
-    function pinMap() {
-        return objectValue(PIN_STORAGE);
+    function seasonMap() {
+        return objectValue(SEASON_STORAGE);
     }
 
-    function getPin(active) {
-        var key = pinMovieKey(active);
-        var all = pinMap();
+    function getRememberedSeason(active) {
+        var key = seasonMovieKey(active);
+        var all = seasonMap();
 
         return key && all[key] ? all[key] : null;
     }
 
-    function setPin(active, pin) {
-        var key = pinMovieKey(active);
+    function setRememberedSeason(active, season) {
+        var key = seasonMovieKey(active);
         if (!key) return;
 
-        var all = pinMap();
-        all[key] = pin;
-        Lampa.Storage.set(PIN_STORAGE, all);
-    }
-
-    function clearPin(active) {
-        var key = pinMovieKey(active);
-        if (!key) return;
-
-        var all = pinMap();
-        delete all[key];
-        Lampa.Storage.set(PIN_STORAGE, all);
+        var all = seasonMap();
+        all[key] = season;
+        Lampa.Storage.set(SEASON_STORAGE, all);
     }
 
     function currentBalancer() {
@@ -124,6 +129,13 @@
         return choice && typeof choice === 'object' && !Array.isArray(choice) ? choice : {};
     }
 
+    function selectedSeasonIndex(active, balancer) {
+        var choice = choiceFor(active, balancer);
+        var index = parseInt(choice.season, 10);
+
+        return isNaN(index) || index < 0 ? 0 : index;
+    }
+
     function findSeasonRow() {
         var result = $();
         var title = Lampa.Lang.translate('torrent_serial_season');
@@ -141,32 +153,17 @@
         return result;
     }
 
-    function currentSeason(active) {
-        var choice = choiceFor(active, currentBalancer());
-        var index = parseInt(choice.season, 10);
-
-        if (isNaN(index) || index < 0) index = 0;
-
-        var row = findSeasonRow();
-        var label = row.length ? row.find('.selectbox-item__subtitle').text().trim() : '';
-        var numberMatch = label.match(/\d+/);
-        var number = numberMatch ? parseInt(numberMatch[0], 10) : index + 1;
-
-        if (!label) {
-            label = Lampa.Lang.translate('torrent_serial_season') + ' ' + number;
-        }
-
-        return {
-            index: index,
-            number: number,
-            label: label
-        };
-    }
-
-    function applyPinToBalancer(active, balancer, pin) {
+    function applySeasonToBalancer(active, balancer, season) {
         var id = choiceMovieId(active);
 
-        if (!id || !balancer || !pin || typeof pin.index === 'undefined') return;
+        if (
+            !id ||
+            !balancer ||
+            !season ||
+            typeof season.index === 'undefined'
+        ) {
+            return;
+        }
 
         var storageName = 'online_choice_' + balancer;
         var data = objectValue(storageName);
@@ -176,7 +173,7 @@
             choice = {};
         }
 
-        choice.season = parseInt(pin.index, 10) || 0;
+        choice.season = parseInt(season.index, 10) || 0;
         data[id] = choice;
 
         internalStorageWrite = true;
@@ -184,28 +181,33 @@
         internalStorageWrite = false;
     }
 
-    function pinSubtitle(active) {
-        var pin = getPin(active);
-
-        if (!pin) return Lampa.Lang.translate('sticky_season_not_pinned');
-
-        return Lampa.Lang.translate('sticky_season_pinned') + ': ' + pin.label;
-    }
-
-    function notify(message) {
-        if (Lampa.Noty && typeof Lampa.Noty.show === 'function') {
-            Lampa.Noty.show(message);
-        }
-    }
-
     function armSourceSwitch(active) {
         sourceSwitchArmed = {
-            movie: pinMovieKey(active),
+            movie: seasonMovieKey(active),
             expires: Date.now() + 30000
         };
     }
 
-    function scheduleFilterReopen(expectedMovie) {
+    function armSeasonSelection(active) {
+        var balancer = currentBalancer();
+
+        seasonSelectArmed = {
+            movie: seasonMovieKey(active),
+            balancer: balancer,
+            before: selectedSeasonIndex(active, balancer),
+            expires: Date.now() + 30000
+        };
+    }
+
+    function isValidArm(arm, active) {
+        return !!(
+            arm &&
+            arm.movie === seasonMovieKey(active) &&
+            arm.expires > Date.now()
+        );
+    }
+
+    function scheduleFilterReopen(expectedMovie, openSources) {
         var attempts = 0;
 
         if (reopenTimer) clearInterval(reopenTimer);
@@ -218,7 +220,7 @@
             if (
                 attempts > 80 ||
                 !active ||
-                pinMovieKey(active) !== expectedMovie
+                seasonMovieKey(active) !== expectedMovie
             ) {
                 clearInterval(reopenTimer);
                 reopenTimer = null;
@@ -242,39 +244,81 @@
             setTimeout(function () {
                 var nowActive = activeActivity();
 
-                if (!nowActive || pinMovieKey(nowActive) !== expectedMovie) return;
+                if (
+                    !nowActive ||
+                    seasonMovieKey(nowActive) !== expectedMovie
+                ) {
+                    return;
+                }
 
                 autoOpening = true;
-                activityRoot(nowActive).find('.torrent-filter .filter--filter').first().trigger('hover:enter');
+                autoOpenSources = !!openSources;
 
+                activityRoot(nowActive)
+                    .find('.torrent-filter .filter--filter')
+                    .first()
+                    .trigger('hover:enter');
+
+                /*
+                 * Safety reset in case this Lampa build does not emit
+                 * Controller "toggle/select" for some reason.
+                 */
                 setTimeout(function () {
                     autoOpening = false;
-                }, 1000);
+                    autoOpenSources = false;
+                }, 1500);
             }, 150);
         }, 150);
     }
 
-    function updatePinnedSeasonFromChoice(event) {
+    function rememberExplicitSeason(event) {
         var active = activeActivity();
-        var pin = getPin(active);
 
-        if (!pin || !isLampacActivity(active)) return;
+        if (!isLampacActivity(active) || !isValidArm(seasonSelectArmed, active)) {
+            return;
+        }
 
         var balancer = currentBalancer();
-        if (!balancer || event.name !== 'online_choice_' + balancer) return;
+
+        if (
+            !balancer ||
+            seasonSelectArmed.balancer !== balancer ||
+            event.name !== 'online_choice_' + balancer
+        ) {
+            return;
+        }
 
         var data = event.value;
         var id = choiceMovieId(active);
         var choice = data && id ? data[id] : null;
-        var season = choice ? parseInt(choice.season, 10) : NaN;
+        var seasonIndex = choice ? parseInt(choice.season, 10) : NaN;
 
-        if (isNaN(season) || season < 0 || season === parseInt(pin.index, 10)) return;
+        if (isNaN(seasonIndex) || seasonIndex < 0) return;
 
-        setPin(active, {
-            index: season,
-            number: season + 1,
-            label: Lampa.Lang.translate('torrent_serial_season') + ' ' + (season + 1)
+        /*
+         * Ignore storage writes caused by opening/closing other filter rows.
+         * Only a real change from the season that was active when the season
+         * row was opened is considered an explicit season choice.
+         */
+        if (seasonIndex === seasonSelectArmed.before) return;
+
+        var movieKey = seasonSelectArmed.movie;
+        seasonSelectArmed = null;
+
+        setRememberedSeason(active, {
+            index: seasonIndex,
+            number: seasonIndex + 1,
+            label:
+                Lampa.Lang.translate('torrent_serial_season') +
+                ' ' +
+                (seasonIndex + 1)
         });
+
+        /*
+         * Lampac reloads the episode list after season selection. Reopen the
+         * filter when the new list is ready and immediately show sources.
+         */
+        scheduleFilterReopen(movieKey, true);
     }
 
     function followStorage() {
@@ -287,38 +331,82 @@
             if (!isLampacActivity(active)) return;
 
             if (event.name === 'online_balanser') {
-                var pin = getPin(active);
+                var remembered = getRememberedSeason(active);
                 var targetBalancer = String(event.value || '');
 
-                if (pin) applyPinToBalancer(active, targetBalancer, pin);
+                if (remembered) {
+                    applySeasonToBalancer(active, targetBalancer, remembered);
+                }
 
-                if (
-                    sourceSwitchArmed &&
-                    sourceSwitchArmed.movie === pinMovieKey(active) &&
-                    sourceSwitchArmed.expires > Date.now()
-                ) {
+                if (isValidArm(sourceSwitchArmed, active)) {
                     var movieKey = sourceSwitchArmed.movie;
                     sourceSwitchArmed = null;
-                    scheduleFilterReopen(movieKey);
+
+                    /*
+                     * After changing source, Lampac rebuilds the activity.
+                     * Reopen directly into the source list, so the next source
+                     * takes only one click.
+                     */
+                    scheduleFilterReopen(movieKey, true);
                 }
 
                 return;
             }
 
             if (event.name === 'active_balanser') {
-                var activePin = getPin(active);
-                if (activePin) applyPinToBalancer(active, String(event.value || ''), activePin);
+                var activeSeason = getRememberedSeason(active);
+
+                if (activeSeason) {
+                    applySeasonToBalancer(
+                        active,
+                        String(event.value || ''),
+                        activeSeason
+                    );
+                }
+
                 return;
             }
 
             if (event.name.indexOf('online_choice_') === 0) {
-                updatePinnedSeasonFromChoice(event);
+                rememberExplicitSeason(event);
             }
         });
     }
 
+    function finishFilterOpen(active, selectbox, listBody, sourceItem) {
+        Lampa.Controller.collectionSet(listBody);
+
+        Lampa.Controller.collectionFocus(
+            autoOpening && sourceItem.length
+                ? sourceItem
+                : selectbox.find('.selectbox-item').first()
+        );
+
+        var openSourcesNow = autoOpenSources && sourceItem.length;
+
+        autoOpening = false;
+        autoOpenSources = false;
+
+        if (openSourcesNow) {
+            setTimeout(function () {
+                var nowActive = activeActivity();
+
+                if (
+                    !nowActive ||
+                    seasonMovieKey(nowActive) !== seasonMovieKey(active) ||
+                    !sourceItem.closest('body').length
+                ) {
+                    return;
+                }
+
+                sourceItem.trigger('hover:enter');
+            }, 120);
+        }
+    }
+
     function start() {
         if (window[FLAG] || window.lampac_src_filter_plugin) return;
+
         window[FLAG] = true;
         window.lampac_src_filter_plugin = true;
 
@@ -347,31 +435,6 @@
                 uk: 'Пошук серії за номером',
                 en: 'Search episode by number',
                 ru: 'Поиск серии по номеру'
-            },
-            sticky_season_title: {
-                uk: 'Закріпити сезон',
-                en: 'Pin season',
-                ru: 'Закрепить сезон'
-            },
-            sticky_season_not_pinned: {
-                uk: 'Не закріплено',
-                en: 'Not pinned',
-                ru: 'Не закреплён'
-            },
-            sticky_season_pinned: {
-                uk: 'Закріплено',
-                en: 'Pinned',
-                ru: 'Закреплён'
-            },
-            sticky_season_enabled: {
-                uk: 'Сезон закріплено: ',
-                en: 'Season pinned: ',
-                ru: 'Сезон закреплён: '
-            },
-            sticky_season_disabled: {
-                uk: 'Закріплення сезону вимкнено',
-                en: 'Season pin disabled',
-                ru: 'Закрепление сезона выключено'
             }
         });
 
@@ -389,14 +452,30 @@
             if (
                 filterTitle.length !== 1 ||
                 filterTitle.text() !== Lampa.Lang.translate('title_filter')
-            ) return;
+            ) {
+                return;
+            }
+
+            /*
+             * Avoid duplicate augmentation if a particular Lampa build emits
+             * the same toggle event more than once for one selectbox.
+             */
+            if (selectbox.find('.lampac-sticky-source').length) return;
 
             var root = activityRoot(active);
-            var sourceButton = root.find('.simple-button--filter.filter--sort');
+            var sourceButton = root.find(
+                '.simple-button--filter.filter--sort'
+            );
 
-            if (sourceButton.length !== 1 || sourceButton.hasClass('hide')) return;
+            if (
+                sourceButton.length !== 1 ||
+                sourceButton.hasClass('hide')
+            ) {
+                return;
+            }
 
             var listBody = selectbox.find('.scroll__body');
+
             var sourceItem = Lampa.Template.get('selectbox_item', {
                 title: Lampa.Lang.translate('settings_rest_source'),
                 subtitle: sourceButton.find('div').text()
@@ -416,42 +495,20 @@
             }
 
             if (!active.movie.first_air_date) {
-                Lampa.Controller.collectionSet(listBody);
-                Lampa.Controller.collectionFocus(autoOpening ? sourceItem : selectbox.find('.selectbox-item').first());
-                autoOpening = false;
+                finishFilterOpen(active, selectbox, listBody, sourceItem);
                 return;
             }
 
+            /*
+             * The season becomes "sticky" automatically only after the user
+             * explicitly opens the Season row and chooses a different season.
+             */
             var seasonRow = findSeasonRow();
-            var pinItem = $();
 
             if (seasonRow.length) {
-                pinItem = Lampa.Template.get('selectbox_item', {
-                    title: Lampa.Lang.translate('sticky_season_title'),
-                    subtitle: pinSubtitle(active)
-                }).addClass('lampac-sticky-season');
-
-                pinItem.on('hover:enter', function () {
-                    var existing = getPin(active);
-
-                    if (existing) {
-                        clearPin(active);
-                        pinItem.find('.selectbox-item__subtitle').text(
-                            Lampa.Lang.translate('sticky_season_not_pinned')
-                        );
-                        notify(Lampa.Lang.translate('sticky_season_disabled'));
-                    } else {
-                        var season = currentSeason(active);
-                        setPin(active, season);
-                        applyPinToBalancer(active, currentBalancer(), season);
-                        pinItem.find('.selectbox-item__subtitle').text(
-                            Lampa.Lang.translate('sticky_season_pinned') + ': ' + season.label
-                        );
-                        notify(Lampa.Lang.translate('sticky_season_enabled') + season.label);
-                    }
+                seasonRow.on('hover:enter', function () {
+                    armSeasonSelection(active);
                 });
-
-                sourceItem.after(pinItem);
             }
 
             active.invertedTv = !!active.invertedTv;
@@ -464,16 +521,23 @@
             }).addClass('lampac-sticky-invert');
 
             invertItem.on('hover:enter', function () {
-                var seriesElements = root.find('.online-prestige.online-prestige--full');
-                seriesElements.parent().append(seriesElements.get().reverse());
+                var seriesElements = root.find(
+                    '.online-prestige.online-prestige--full'
+                );
+
+                seriesElements
+                    .parent()
+                    .append(seriesElements.get().reverse());
 
                 active.invertedTv = !active.invertedTv;
 
-                invertItem.find('.selectbox-item__subtitle').text(
-                    active.invertedTv
-                        ? Lampa.Lang.translate('order_invert')
-                        : Lampa.Lang.translate('order_standard')
-                );
+                invertItem
+                    .find('.selectbox-item__subtitle')
+                    .text(
+                        active.invertedTv
+                            ? Lampa.Lang.translate('order_invert')
+                            : Lampa.Lang.translate('order_standard')
+                    );
             });
 
             var findEpisodeItem = Lampa.Template.get('selectbox_item', {
@@ -484,42 +548,48 @@
             findEpisodeItem.on('hover:enter', function () {
                 Lampa.Controller.toggle('content');
 
-                Lampa.Input.edit({
-                    free: true,
-                    title: Lampa.Lang.translate('find_episode'),
-                    nosave: true,
-                    value: '',
-                    layout: 'nums',
-                    keyboard: 'lampa'
-                }, function (episode) {
-                    Lampa.Controller.toggle('content');
+                Lampa.Input.edit(
+                    {
+                        free: true,
+                        title: Lampa.Lang.translate('find_episode'),
+                        nosave: true,
+                        value: '',
+                        layout: 'nums',
+                        keyboard: 'lampa'
+                    },
+                    function (episode) {
+                        Lampa.Controller.toggle('content');
 
-                    var targetEpisode = root.find('.online-prestige--full').filter(function () {
-                        var number = parseInt(
-                            $(this).find('.online-prestige__episode-number').text().trim(),
-                            10
-                        );
+                        var targetEpisode = root
+                            .find('.online-prestige--full')
+                            .filter(function () {
+                                var number = parseInt(
+                                    $(this)
+                                        .find(
+                                            '.online-prestige__episode-number'
+                                        )
+                                        .text()
+                                        .trim(),
+                                    10
+                                );
 
-                        return number === parseInt(episode, 10);
-                    });
+                                return number === parseInt(episode, 10);
+                            });
 
-                    if (targetEpisode.length) {
-                        Lampa.Controller.collectionFocus(targetEpisode, active.activity.body);
+                        if (targetEpisode.length) {
+                            Lampa.Controller.collectionFocus(
+                                targetEpisode,
+                                active.activity.body
+                            );
+                        }
                     }
-                });
+                );
             });
 
             listBody.append(invertItem);
             listBody.append(findEpisodeItem);
 
-            Lampa.Controller.collectionSet(listBody);
-            Lampa.Controller.collectionFocus(
-                autoOpening && sourceItem.length
-                    ? sourceItem
-                    : selectbox.find('.selectbox-item').first()
-            );
-
-            autoOpening = false;
+            finishFilterOpen(active, selectbox, listBody, sourceItem);
         });
     }
 
