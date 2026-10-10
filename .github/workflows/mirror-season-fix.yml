@@ -1,0 +1,54 @@
+name: Mirror season-fix plugin
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/mirror-season-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download current upstream season-fix.js
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/ipavlin98/lmp-plugins/main/season-fix.js \
+            --output season-fix.js
+          test -s season-fix.js
+
+      - name: Add provenance header
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          cat > "$tmp" <<'EOF'
+          /*
+           * Mirrored for Proton4/lampac.
+           * Upstream: https://github.com/ipavlin98/lmp-plugins/blob/main/season-fix.js
+           * The plugin is kept unchanged apart from this provenance header.
+           */
+          EOF
+          cat season-fix.js >> "$tmp"
+          mv "$tmp" season-fix.js
+
+      - name: Commit mirror when changed
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add season-fix.js
+          if git diff --cached --quiet; then
+            echo "season-fix.js is already current"
+          else
+            git commit -m "Mirror season-fix plugin"
+            git push
+          fi
