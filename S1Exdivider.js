@@ -12,10 +12,12 @@
     var FLAG = 'P4_LAMPAC_EPISODE_PAGES_1';
     var SETTING = 'p4_episode_pages_size';
     var MEMORY = 'p4_episode_pages_selected';
-    var VERSION = '1.1.0';
+    var VERSION = '1.2.0';
     var current = null;
     var observer = null;
     var observedBody = null;
+    var shellObserver = null;
+    var observedContainer = null;
     var scheduled = null;
     var started = false;
     var conflictNotice = false;
@@ -130,6 +132,8 @@
             '.p4-episode-pages__button.focus,.p4-episode-pages__button:focus{',
                 'background:rgba(255,255,255,.3);box-shadow:0 0 0 .13em #fff;}',
             '.p4-episode-pages__hidden{display:none!important;}',
+            '.p4-episode-pages__loading{font-size:.82em;opacity:.58;',
+                'padding:.45em .4em .7em;}',
             '.explorer__files.p4-episode-pages--pinned{position:relative;}',
             '.explorer__files.p4-episode-pages--pinned>.explorer__files-head{',
                 'position:relative;z-index:3;}',
@@ -148,7 +152,7 @@
     }
 
     function locate() {
-        var active, root, explorer, body, rows, component, head, files;
+        var active, root, explorer, body, rows, component, head, files, container;
         try {
             active = Lampa.Activity.active();
             if (!active || !active.activity || !active.activity.render) return null;
@@ -159,16 +163,21 @@
             if (component === 'torrents' || component === 'full') return null;
             head = explorer.find('.explorer__files-head').first();
             files = explorer.find('.explorer__files').first();
-            body = explorer.find('.explorer__files-body .scroll__body').first();
-            if (!body.length) return null;
+            container = explorer.find('.explorer__files-body').first();
+            if (!container.length) return null;
+            // The online provider may replace the scroll container while
+            // switching audio tracks. Keep the activity visible during reload.
+            body = container.find('.scroll__body').first();
+            if (!body.length) return {active:active, root:explorer,
+                body:body, rows:$(), head:head, files:files, container:container};
             rows = body.find('.online-prestige--full, .onl-online-prestige--full').filter(function () {
                 return !$(this).closest('.nova-plus-root').length;
             });
             if (!rows.length) return {active:active, root:explorer, body:body, rows:rows,
-                head:head, files:files};
+                head:head, files:files, container:container};
             if (!active.movie && !active.card) return null;
             return {active:active, root:explorer, body:body, rows:rows,
-                head:head, files:files};
+                head:head, files:files, container:container};
         } catch (e) {
             log('locate error: ' + e);
             return null;
@@ -180,20 +189,40 @@
             observer.disconnect();
             observer = null;
         }
+        if (shellObserver) {
+            shellObserver.disconnect();
+            shellObserver = null;
+        }
         observedBody = null;
+        observedContainer = null;
     }
 
     function watchBody(data) {
-        if (!data || !data.body || !data.body.length) {
+        if (!data || !data.container || !data.container.length) {
             detachObserver();
             return;
         }
-        if (observedBody === data.body[0]) return;
-        detachObserver();
-        observedBody = data.body[0];
-        if (typeof MutationObserver !== 'undefined') {
+        var container = data.container[0];
+        if (observedContainer !== container) {
+            if (shellObserver) shellObserver.disconnect();
+            observedContainer = container;
+            if (typeof MutationObserver !== 'undefined') {
+                shellObserver = new MutationObserver(function () { schedule(); });
+                // Observe only direct scroll elements, not image loading.
+                shellObserver.observe(container, {childList:true, subtree:false});
+            }
+        }
+
+        var body = data.body && data.body.length ? data.body[0] : null;
+        if (observedBody === body) return;
+        if (observer) {
+            observer.disconnect();
+            observer = null;
+        }
+        observedBody = body;
+        if (body && typeof MutationObserver !== 'undefined') {
             observer = new MutationObserver(function () { schedule(); });
-            observer.observe(observedBody, {childList:true, subtree:false});
+            observer.observe(body, {childList:true, subtree:false});
         }
     }
 
@@ -211,6 +240,22 @@
                 typeof Lampa.Layer.update === 'function')
                 Lampa.Layer.update(data.root[0]);
         } catch (e) { log('layout error: ' + e); }
+    }
+
+    function showLoading(state) {
+        if (!state || !state.toolbar || !state.toolbar.length ||
+            !state.pinned || state.loading) return;
+        state.loading = true;
+        state.toolbar.find('.p4-episode-pages__label').first()
+            .text('СЕРИИ · загружаем озвучку…');
+        state.toolbar.find('.p4-episode-pages__pages').empty()
+            .append('<div class="p4-episode-pages__loading">Ожидание списка серий</div>');
+    }
+
+    function seriesFor(data) {
+        var active = data && data.active || {};
+        var movie = active.movie || active.card || {};
+        return !!(movie.name || movie.number_of_seasons);
     }
 
     function release() {
@@ -312,9 +357,16 @@
         }
         watchBody(data);
         var size = pageSize(data.rows.length, modeValue);
-        // Nova only shows jump pages when the list contains more than 20 cards.
-        if ((modeValue === 'auto' && data.rows.length <= 20) ||
-            data.rows.length <= size || size === 0) {
+        if (!data.rows.length) {
+            // Lampac resets its scroll list before drawing a new voice.
+            // Keep the pinned toolbar visible while the new list loads.
+            if (current && current.data.active === data.active) {
+                showLoading(current);
+            } else release();
+            return;
+        }
+        if (size === 0 || data.rows.length <= 1 ||
+            (data.rows.length <= size && !seriesFor(data))) {
             release();
             return;
         }
@@ -325,7 +377,7 @@
             current.first === first && current.last === last &&
             current.rows.length === data.rows.length &&
             current.key === key && current.mode === modeValue &&
-            current.pinned === pinAvailable(data) &&
+            !current.loading && current.pinned === pinAvailable(data) &&
             current.toolbar && current.toolbar.length &&
             $.contains(data.root[0], current.toolbar[0])) return;
 
@@ -399,6 +451,26 @@
         if (Lampa.Listener && Lampa.Listener.follow) {
             Lampa.Listener.follow('activity', function () { schedule(); });
         }
+        // The filter changes the online_choice_* storage entry BEFORE the
+        // asynchronous source request finishes. Follow that event, and retry
+        // after the provider has had time to return new episode cards.
+        try {
+            var storageEvents = Lampa.Storage && Lampa.Storage.listener;
+            if (storageEvents && typeof storageEvents.follow === 'function') {
+                storageEvents.follow('change', function (event) {
+                    var name = event && String(event.name || '');
+                    if (name.indexOf('online_choice_') !== 0 &&
+                        name !== 'online_balanser' &&
+                        name !== 'active_balanser') return;
+                    if (current && current.pinned &&
+                        contextKey(current.data) !== current.key)
+                        showLoading(current);
+                    schedule();
+                    setTimeout(schedule, 450);
+                    setTimeout(schedule, 1600);
+                });
+            }
+        } catch (e) { log('voice watch error: ' + e); }
         setInterval(function () {
             try { sync(); } catch (e) { log('poll error: ' + e); }
         }, 1400);
@@ -419,6 +491,7 @@
                 pages:current ? current.pages.length : 0,
                 selected:current ? current.index + 1 : 0,
                 pinned:current ? !!current.pinned : false,
+                loading:current ? !!current.loading : false,
                 key:current ? current.key : ''
             };
         }
