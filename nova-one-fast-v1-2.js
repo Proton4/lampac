@@ -460,6 +460,94 @@
         return true;
     }
 
+
+    // Only user-triggered actions. No periodic network polling is added here.
+    function p4ShowAllSources() {
+        var view = active;
+        if (!view || !view.rows) return;
+        var source = view.rows.find('[data-nova-focus="source"]').first();
+        if (!source.length) {
+            try { Lampa.Noty.show('Источники ещё загружаются'); } catch (e) {}
+            return;
+        }
+        var opened = view.rows.find('.nova-drop[data-nova-menu="source"]').length;
+        if (!opened) source.trigger('hover:enter');
+        setTimeout(function () {
+            var rows = active && active.rows;
+            if (!rows) return;
+            var more = rows.find('.nova-chip--more').first();
+            if (more.length) more.trigger('hover:enter');
+        }, 150);
+    }
+
+    function p4RecheckSources() {
+        var now;
+        try { now = Lampa.Activity.active(); } catch (e) { now = null; }
+        if (!now || now.component !== 'lampac' || !now.movie ||
+            !now.movie.id) {
+            try { Lampa.Noty.show('Перепроверка доступна в Lampac'); } catch (e) {}
+            return;
+        }
+
+        // Forget only this movie's previously negative NOVA client results.
+        // Other movies and all playback/translation choices remain unchanged.
+        try {
+            var box = Lampa.Storage.get('nova_probe', {});
+            var entry = box && box[String(now.movie.id)];
+            var changed = false;
+            if (entry && entry.list) {
+                for (var key in entry.list) {
+                    if (!Object.prototype.hasOwnProperty.call(entry.list, key)) continue;
+                    if (entry.list[key] && entry.list[key].s === 'empty') {
+                        delete entry.list[key];
+                        changed = true;
+                    }
+                }
+                if (changed) Lampa.Storage.set('nova_probe', box);
+            }
+        } catch (e) { log('Probe reset: ' + e); }
+
+        // Recreate the Lampac activity using its normal startup scanner.
+        // Non-empty argument bypasses Nova's special "in-place" replace.
+        // No direct createSource() call on the live component: that could
+        // conflict with the current source enumeration.
+        try {
+            Lampa.Activity.replace({component:now.component});
+        } catch (e) {
+            log('Source recheck: ' + e);
+            try { Lampa.Noty.show('Не удалось обновить источники'); } catch (e2) {}
+        }
+    }
+
+    function p4SourceMenu() {
+        if (!Lampa.Select || typeof Lampa.Select.show !== 'function') return;
+        Lampa.Select.show({
+            title:'Источники — Nova One',
+            items:[
+                {title:'Показать все, включая скрытые', p4_action:'all'},
+                {title:'Перепроверить источники Lampac', p4_action:'refresh'}
+            ],
+            onSelect:function (item) {
+                if (!item) return;
+                if (item.p4_action === 'all') setTimeout(p4ShowAllSources, 75);
+                else if (item.p4_action === 'refresh') setTimeout(p4RecheckSources, 75);
+            }
+        });
+    }
+
+    function p4AddSourceButton(view) {
+        if (!view || !view.rows) return;
+        var bar = view.rows.find('.nova-plus__bar').first();
+        if (!bar.length || bar.find('.p4-nova-refresh').length) return;
+        var button = $('<div class="nova-chip selector p4-nova-refresh"></div>');
+        button.append($('<span class="nova-chip__label"></span>').text('↻ Источники'));
+        // No data-nova-focus: Nova rebind() would overwrite its handler.
+        button.on('hover:enter.p4src click.p4src', function () {
+            p4SourceMenu();
+        });
+        bar.prepend(button);
+    }
+
     function shouldPin() {
         if (!isEnabled() || !isNovaWide()) return false;
         if (window.innerWidth < 960 || window.innerHeight < 390) return false;
@@ -485,7 +573,10 @@
         }
         if (active) active.active = view.active;
         if (!resize(active)) unpin();
-        else updateSummary(active);
+        else {
+            updateSummary(active);
+            p4AddSourceButton(active);
+        }
     }
 
     function schedule() {
