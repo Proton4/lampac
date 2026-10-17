@@ -546,6 +546,14 @@
             p4SourceMenu();
         });
         bar.prepend(button);
+        // Keep the newly inserted selector reachable by the TV remote.
+        // collectionAppend does not clear/reset focus on existing Nova cards.
+        try {
+            if (Lampa.Controller &&
+                typeof Lampa.Controller.collectionAppend === 'function') {
+                Lampa.Controller.collectionAppend(button[0]);
+            }
+        } catch (e) {}
     }
 
     function shouldPin() {
