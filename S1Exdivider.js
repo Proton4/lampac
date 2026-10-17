@@ -383,7 +383,7 @@
 
         release();
         var pages = makePages(data.rows.length, modeValue);
-        if (pages.length <= 1) return;
+        if (!pages.length) return;
 
         var toolbar = $('<div class="p4-episode-pages"></div>');
         toolbar.append('<div class="p4-episode-pages__label">СЕРИИ · ' +
