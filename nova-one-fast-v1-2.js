@@ -483,9 +483,15 @@
     function p4RecheckSources() {
         var now;
         try { now = Lampa.Activity.active(); } catch (e) { now = null; }
-        if (!now || now.component !== 'lampac' || !now.movie ||
-            !now.movie.id) {
-            try { Lampa.Noty.show('Перепроверка доступна в Lampac'); } catch (e) {}
+
+        // Nova is a universal online skin, not a 'lampac'-only activity.
+        // The real source can be 'lampac', 'online', online_prestige, etc.
+        // Only allow refresh when the same active Nova card is still open.
+        var movie = now && (now.movie || now.card);
+        if (!active || !now || !now.activity || !now.component ||
+            active.active !== now || !movie || !movie.id ||
+            !Lampa.Activity || typeof Lampa.Activity.replace !== 'function') {
+            try { Lampa.Noty.show('Открой онлайн-карточку для обновления'); } catch (e) {}
             return;
         }
 
@@ -493,7 +499,7 @@
         // Other movies and all playback/translation choices remain unchanged.
         try {
             var box = Lampa.Storage.get('nova_probe', {});
-            var entry = box && box[String(now.movie.id)];
+            var entry = box && box[String(movie.id)];
             var changed = false;
             if (entry && entry.list) {
                 for (var key in entry.list) {
@@ -507,15 +513,17 @@
             }
         } catch (e) { log('Probe reset: ' + e); }
 
-        // Recreate the Lampac activity using its normal startup scanner.
-        // Non-empty argument bypasses Nova's special "in-place" replace.
-        // No direct createSource() call on the live component: that could
-        // conflict with the current source enumeration.
+        // Replay the same online component's actual startup search.
+        // Lampa.Activity.replace recreates it, calling start()/initialize().
+        // For Lampac that runs createSource() -> lifeSource() -> startSource().
+        // Non-empty params bypass Nova's in-place Activity.replace wrapper.
+        // DO NOT call createSource() on the live component: that may overlap
+        // existing source requests and freeze the old Crosswalk engine.
         try {
             Lampa.Activity.replace({component:now.component});
         } catch (e) {
             log('Source recheck: ' + e);
-            try { Lampa.Noty.show('Не удалось обновить источники'); } catch (e2) {}
+            try { Lampa.Noty.show('Не удалось перезапустить поиск источников'); } catch (e2) {}
         }
     }
 
@@ -525,7 +533,7 @@
             title:'Источники — Nova One',
             items:[
                 {title:'Показать все, включая скрытые', p4_action:'all'},
-                {title:'Перепроверить источники Lampac', p4_action:'refresh'}
+                {title:'Перезапустить поиск источников', p4_action:'refresh'}
             ],
             onSelect:function (item) {
                 if (!item) return;
@@ -720,11 +728,11 @@
             } catch (e) { log('fallback: ' + e); }
         }, 2500);
         schedule();
-        log('v1.2 stable v1 layout with source controls');
+        log('v1.2.1: native rescan for any online component');
     }
 
     window.P4NovaFixed = {
-        version:'1.2.0',
+        version:'1.2.1',
         sync:sync,
         enabled:isEnabled,
         status:function () {
