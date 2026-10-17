@@ -17,7 +17,6 @@
     var timer = null;
     var started = false;
     var lastError = '';
-    var recentScroll = 0;
 
     if (window[FLAG]) return;
     window[FLAG] = true;
@@ -153,21 +152,23 @@
 
     function bindPanelEvents(view) {
         var strip = view.strip, rows = view.rows, hero = view.hero;
-        function preventWheelOuter(e) {
-            stopBubble(e);
+        view.domListeners = [];
+        function stopOuter(e) { stopBubble(e); }
+        function attach(node, eventName) {
+            node.addEventListener(eventName, stopOuter, false);
+            view.domListeners.push({node:node, name:eventName, fn:stopOuter});
         }
-        function preventTouchOuter(e) { stopBubble(e); }
 
         // The outer Lampa.Scroll listens for wheel and touch on ancestors.
         // Stop bubbling so native overflow scrolling remains local.
-        strip[0].addEventListener('wheel', preventWheelOuter, false);
-        strip[0].addEventListener('mousewheel', preventWheelOuter, false);
-        strip[0].addEventListener('touchstart', preventTouchOuter, false);
-        strip[0].addEventListener('touchmove', preventTouchOuter, false);
-        rows[0].addEventListener('wheel', preventWheelOuter, false);
-        rows[0].addEventListener('mousewheel', preventWheelOuter, false);
-        hero[0].addEventListener('wheel', preventWheelOuter, false);
-        hero[0].addEventListener('mousewheel', preventWheelOuter, false);
+        attach(strip[0], 'wheel');
+        attach(strip[0], 'mousewheel');
+        attach(strip[0], 'touchstart');
+        attach(strip[0], 'touchmove');
+        attach(rows[0], 'wheel');
+        attach(rows[0], 'mousewheel');
+        attach(hero[0], 'wheel');
+        attach(hero[0], 'mousewheel');
 
         // Both Lampa and Nova signal keyboard/remote focus through hover:focus.
         strip.on('hover:focus.p4fixed focusin.p4fixed',
@@ -243,6 +244,12 @@
         var view = active;
         try {
             restoreOuterScroll(view);
+            if (view.domListeners) {
+                for (var n = 0; n < view.domListeners.length; n++) {
+                    var item = view.domListeners[n];
+                    item.node.removeEventListener(item.name, item.fn, false);
+                }
+            }
             view.root.removeClass('p4-nova-fixed').css('height', '');
             view.rows.css('height', '');
             view.strip.css({top:'',height:''});
@@ -265,7 +272,6 @@
         bindPanelEvents(view);
         patchOuterScroll(view);
         active = view;
-        recentScroll = 0;
 
         if (view.scroller[0]) {
             var scroll = view.scroller[0];
