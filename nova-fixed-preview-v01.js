@@ -176,10 +176,73 @@
             '.selector,.nova-chip', function () { fitInto(rows, this); });
     }
 
+
+    function patchOuterScroll(view) {
+        var frame = view.scroller[0];
+        var instance = frame && frame.Scroll;
+        if (!instance || !instance.update || instance.__p4NovaFixed) return;
+        var saved = {
+            instance:instance,
+            update:instance.update,
+            immediate:instance.immediate,
+            wheel:instance.wheel,
+            shift:instance.shift
+        };
+        view.scrollPatch = saved;
+
+        function panelFor(target) {
+            if (!target) return null;
+            var elem = target.jquery ? target[0] : target;
+            if (!elem || !view.root[0]) return null;
+            if (elem === view.strip[0] || $.contains(view.strip[0], elem))
+                return view.strip;
+            if (elem === view.rows[0] || $.contains(view.rows[0], elem))
+                return view.rows;
+            if (elem === view.hero[0] || $.contains(view.hero[0], elem))
+                return view.hero;
+            return null;
+        }
+
+        instance.update = function (target) {
+            var pane = panelFor(target);
+            if (pane) {
+                fitInto(pane, target.jquery ? target[0] : target);
+                return;
+            }
+            return saved.update.apply(this, arguments);
+        };
+        if (typeof saved.immediate === 'function') {
+            instance.immediate = function (target) {
+                var pane = panelFor(target);
+                if (pane) {
+                    fitInto(pane, target.jquery ? target[0] : target);
+                    return;
+                }
+                return saved.immediate.apply(this, arguments);
+            };
+        }
+        instance.wheel = function () {};
+        instance.shift = function () {};
+        instance.__p4NovaFixed = true;
+    }
+
+    function restoreOuterScroll(view) {
+        var saved = view.scrollPatch;
+        if (!saved || !saved.instance) return;
+        var instance = saved.instance;
+        instance.update = saved.update;
+        if (saved.immediate) instance.immediate = saved.immediate;
+        if (saved.wheel) instance.wheel = saved.wheel;
+        if (saved.shift) instance.shift = saved.shift;
+        delete instance.__p4NovaFixed;
+        view.scrollPatch = null;
+    }
+
     function unpin() {
         if (!active) return;
         var view = active;
         try {
+            restoreOuterScroll(view);
             view.root.removeClass('p4-nova-fixed').css('height', '');
             view.rows.css('height', '');
             view.strip.css({top:'',height:''});
@@ -188,6 +251,7 @@
             view.rows.off('.p4fixed');
             if (view.scroller && view.scroller.length) {
                 var scroll = view.scroller[0];
+                if (view.scrollHandler) scroll.removeEventListener('scroll', view.scrollHandler, false);
                 if (scroll.Scroll && scroll.Scroll.reset) scroll.Scroll.reset();
                 scroll.scrollTop = 0;
             }
@@ -199,11 +263,17 @@
         view.explorer.addClass('p4-nova-fixed-shell');
         view.root.addClass('p4-nova-fixed');
         bindPanelEvents(view);
+        patchOuterScroll(view);
         active = view;
         recentScroll = 0;
 
         if (view.scroller[0]) {
             var scroll = view.scroller[0];
+            view.scrollHandler = function () {
+                if (active && active.scroller[0] === scroll && scroll.scrollTop !== 0)
+                    scroll.scrollTop = 0;
+            };
+            scroll.addEventListener('scroll', view.scrollHandler, false);
             try {
                 if (scroll.Scroll && scroll.Scroll.reset) scroll.Scroll.reset();
                 scroll.scrollTop = 0;
