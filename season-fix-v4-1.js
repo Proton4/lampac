@@ -135,6 +135,30 @@
 			return map;
 		},
 
+
+        splitManual: function (episodes, size) {
+            if (!Array.isArray(episodes) || episodes.length <= size) return null;
+            var sorted = episodes.slice().sort(function(a,b) {
+                return Number(a.episode_number) - Number(b.episode_number);
+            });
+            for (var i = 0; i < sorted.length; i++) {
+                if (!sorted[i] || Number(sorted[i].season_number) !== 1 ||
+                    !isInteger(Number(sorted[i].episode_number), 1)) return null;
+            }
+            var result = {}, season, episode, copy;
+            for (var j = 0; j < sorted.length; j++) {
+                season = Math.floor(j / size) + 1;
+                episode = (j % size) + 1;
+                copy = cloneEpisode(sorted[j]);
+                copy.season_number = season;
+                copy.episode_number = episode;
+                copy.id = 900000 + season * 1000 + episode;
+                if (!result[season]) result[season] = [];
+                result[season].push(copy);
+            }
+            return result;
+        },
+
 		splitByMap: function (episodes, map) {
 			var sorted = episodes.slice().sort(function (a, b) {
 				return (a.episode_number || 0) - (b.episode_number || 0);
@@ -520,12 +544,7 @@
 
 					var groupSize = Number(Lampa.Storage.get("season_fix_v41_size", "0"));
                     if (isInteger(groupSize, 1) && groupSize <= 100 && episodes.length > groupSize) {
-                        var groups = {}, left = episodes.length, nextSeason = 1;
-                        while (left > 0) {
-                            groups[nextSeason++] = Math.min(groupSize, left);
-                            left -= groupSize;
-                        }
-                        var manual = _this.splitByMap(episodes, groups);
+                        var manual = _this.splitManual(episodes, groupSize);
                         if (manual) return manual;
                     }
 
