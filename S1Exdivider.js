@@ -3,6 +3,7 @@
  * Purpose: paginate already-rendered Lampac episode cards without inventing
  * seasons, changing real season numbers or touching playback URLs.
  * Inspired by the UX of Nova Plus; original implementation, no third-party code.
+ * Pinned range toolbar is placed outside the transformed scrolling body.
  * ES5, Crosswalk 5 / Chromium 34 compatible.
  */
 (function () {
@@ -11,7 +12,7 @@
     var FLAG = 'P4_LAMPAC_EPISODE_PAGES_1';
     var SETTING = 'p4_episode_pages_size';
     var MEMORY = 'p4_episode_pages_selected';
-    var VERSION = '1.0.0';
+    var VERSION = '1.1.0';
     var current = null;
     var observer = null;
     var observedBody = null;
@@ -128,7 +129,15 @@
                 'border-color:rgba(255,255,255,.68);}',
             '.p4-episode-pages__button.focus,.p4-episode-pages__button:focus{',
                 'background:rgba(255,255,255,.3);box-shadow:0 0 0 .13em #fff;}',
-            '.p4-episode-pages__hidden{display:none!important;}'
+            '.p4-episode-pages__hidden{display:none!important;}',
+            '.explorer__files.p4-episode-pages--pinned{position:relative;}',
+            '.explorer__files.p4-episode-pages--pinned>.explorer__files-head{',
+                'position:relative;z-index:3;}',
+            '.explorer__files.p4-episode-pages--pinned>.explorer__files-body{',
+                'position:relative;z-index:1;}',
+            '.explorer__files-head>.p4-episode-pages{',
+                'margin:.6em 0 .2em 0;padding:.35em .2em .25em;',
+                'background:rgba(25,27,29,.95);border-radius:.35em;}'
         ].join('');
         (document.head || document.body).appendChild(el);
     }
@@ -139,7 +148,7 @@
     }
 
     function locate() {
-        var active, root, explorer, body, rows, component;
+        var active, root, explorer, body, rows, component, head, files;
         try {
             active = Lampa.Activity.active();
             if (!active || !active.activity || !active.activity.render) return null;
@@ -148,14 +157,18 @@
             explorer = root.hasClass('explorer') ? root : root.find('.explorer').first();
             if (!explorer.length) return null;
             if (component === 'torrents' || component === 'full') return null;
+            head = explorer.find('.explorer__files-head').first();
+            files = explorer.find('.explorer__files').first();
             body = explorer.find('.explorer__files-body .scroll__body').first();
             if (!body.length) return null;
             rows = body.find('.online-prestige--full, .onl-online-prestige--full').filter(function () {
                 return !$(this).closest('.nova-plus-root').length;
             });
-            if (!rows.length) return {active:active, root:explorer, body:body, rows:rows};
+            if (!rows.length) return {active:active, root:explorer, body:body, rows:rows,
+                head:head, files:files};
             if (!active.movie && !active.card) return null;
-            return {active:active, root:explorer, body:body, rows:rows};
+            return {active:active, root:explorer, body:body, rows:rows,
+                head:head, files:files};
         } catch (e) {
             log('locate error: ' + e);
             return null;
@@ -184,11 +197,33 @@
         }
     }
 
+    function pinAvailable(data) {
+        return !!(data && data.root && data.root.length &&
+            data.head && data.head.length &&
+            data.files && data.files.length &&
+            !data.head.hasClass('hide') &&
+            $.contains(data.root[0], data.head[0]));
+    }
+
+    function updateLayout(data) {
+        try {
+            if (data && Lampa.Layer &&
+                typeof Lampa.Layer.update === 'function')
+                Lampa.Layer.update(data.root[0]);
+        } catch (e) { log('layout error: ' + e); }
+    }
+
     function release() {
         if (!current) return;
-        try { current.rows.removeClass('p4-episode-pages__hidden'); } catch (e) {}
-        try { if (current.toolbar) current.toolbar.remove(); } catch (e2) {}
+        var old = current;
+        try { old.rows.removeClass('p4-episode-pages__hidden'); } catch (e) {}
+        try { if (old.toolbar) old.toolbar.remove(); } catch (e2) {}
+        try {
+            if (old.pinned && old.data.files)
+                old.data.files.removeClass('p4-episode-pages--pinned');
+        } catch (e3) {}
         current = null;
+        if (old.pinned) updateLayout(old.data);
     }
 
     function focusFirstRow() {
@@ -289,7 +324,10 @@
         if (current && current.data.body[0] === data.body[0] &&
             current.first === first && current.last === last &&
             current.rows.length === data.rows.length &&
-            current.key === key && current.mode === modeValue) return;
+            current.key === key && current.mode === modeValue &&
+            current.pinned === pinAvailable(data) &&
+            current.toolbar && current.toolbar.length &&
+            $.contains(data.root[0], current.toolbar[0])) return;
 
         release();
         var pages = makePages(data.rows.length, modeValue);
@@ -299,12 +337,22 @@
         toolbar.append('<div class="p4-episode-pages__label">СЕРИИ · ' +
             data.rows.length + '</div>');
         toolbar.append('<div class="p4-episode-pages__pages"></div>');
-        data.rows.first().before(toolbar);
+        // Lampa TV scrolls by translating .scroll__body. "position:sticky"
+        // INSIDE that element cannot keep the range selector visible.
+        // Mount it in the stationary .explorer__files-head instead.
+        var pinned = pinAvailable(data);
+        if (pinned) {
+            data.head.append(toolbar);
+            data.files.addClass('p4-episode-pages--pinned');
+        } else {
+            data.rows.first().before(toolbar);
+        }
         current = {
             data:data, toolbar:toolbar, rows:data.rows, first:first, last:last,
-            key:key, mode:modeValue, pages:pages, index:0
+            key:key, mode:modeValue, pages:pages, index:0, pinned:pinned
         };
         selectPage(Math.min(readIndex(key), pages.length - 1), false);
+        if (pinned) updateLayout(data);
         log('ready: ' + data.rows.length + ' episodes, ' + pages.length +
             ' pages; size=' + size);
     }
@@ -370,6 +418,7 @@
                 count:current ? current.rows.length : 0,
                 pages:current ? current.pages.length : 0,
                 selected:current ? current.index + 1 : 0,
+                pinned:current ? !!current.pinned : false,
                 key:current ? current.key : ''
             };
         }
