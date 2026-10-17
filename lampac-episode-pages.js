@@ -277,7 +277,9 @@
         }
         watchBody(data);
         var size = pageSize(data.rows.length, modeValue);
-        if (data.rows.length <= size || size === 0) {
+        // Nova only shows jump pages when the list contains more than 20 cards.
+        if ((modeValue === 'auto' && data.rows.length <= 20) ||
+            data.rows.length <= size || size === 0) {
             release();
             return;
         }
