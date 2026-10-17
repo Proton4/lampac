@@ -87,7 +87,7 @@
             from = episodeNum(first);
             to = episodeNum(last);
             labels.push('Подсезон ' + (Math.floor(i / size) + 1) +
-                ' (серии ' + from + '\u2013' + to + ')');
+                (from === to ? ' (серия ' + from + ')' : ' (серии ' + from + '\u2013' + to + ')'));
         }
         labels.push('Все серии (' + videos.length + ')');
         return labels;
