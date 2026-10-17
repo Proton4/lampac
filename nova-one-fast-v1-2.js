@@ -439,14 +439,36 @@
             available = Math.min(available, Math.floor(viewport.bottom - rect.top - 5));
         if (available < 260) return false;
 
-        // Measure the *unconstrained inner content* of Nova's filter panel.
-        // Measuring view.rows.scrollHeight creates a feedback loop: its own
-        // forced height becomes next interval's height (+6px every 1.1s).
+        // Nova can reserve a large, empty min-height in its filter panel.
+        // Measuring its scrollHeight creates a blank band over the voice chips.
+        // Measure the BOTTOM of the actually visible filter groups instead.
         var inner = view.rows.children('.nova-plus__panel').first();
-        var natural = inner.length && inner[0].scrollHeight ?
-            inner[0].scrollHeight : 130;
+        var natural = 130;
+        var measured = 0;
+        if (inner.length && inner[0]) {
+            var bounds = view.rows[0].getBoundingClientRect();
+            var yScroll = view.rows[0].scrollTop || 0;
+            inner.children('.nova-plus__bar,.nova-plus__group,.nova-drop')
+                .each(function () {
+                    if (!this.getBoundingClientRect) return;
+                    var box = this.getBoundingClientRect();
+                    if (!box.width || !box.height) return;
+                    // Ignore invisible dropdowns and disabled filter groups.
+                    var style = window.getComputedStyle ?
+                        window.getComputedStyle(this, null) : this.currentStyle;
+                    if (style && (style.display === 'none' ||
+                        style.visibility === 'hidden')) return;
+                    var bottom = box.bottom - bounds.top + yScroll;
+                    if (bottom > 0 && bottom < available * 2)
+                        measured = Math.max(measured, bottom);
+                });
+            if (measured > 0) natural = Math.max(100, measured);
+            else if (inner[0].scrollHeight) natural = inner[0].scrollHeight;
+        }
+        // Leave room for many voices (their own scroll), but never reserve
+        // space belonging only to the empty background of Nova's panel.
         var cap = Math.max(120, Math.min(Math.floor(available * 0.74), available - 170));
-        var top = Math.max(100, Math.min(Math.ceil(natural + 12), cap));
+        var top = Math.max(100, Math.min(Math.ceil(natural + 10), cap));
         var stripHeight = Math.max(80, available - top - 8);
 
         // Write style only on actual dimension changes; never redraw Nova.
@@ -728,11 +750,11 @@
             } catch (e) { log('fallback: ' + e); }
         }, 2500);
         schedule();
-        log('v1.2.1: native rescan for any online component');
+        log('v1.2.2: tighter voice panel based on visible controls');
     }
 
     window.P4NovaFixed = {
-        version:'1.2.1',
+        version:'1.2.2',
         sync:sync,
         enabled:isEnabled,
         status:function () {
