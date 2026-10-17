@@ -509,7 +509,7 @@
             return;
         }
 
-        var source = view.rows.find('.nova-plus__bar [data-nova-focus="source"]').first();
+        var source = view.rows.find('[data-nova-focus="source"]').first();
         if (!source.length) {
             message('Nova ещё не загрузила список источников');
             return;
