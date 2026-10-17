@@ -114,6 +114,9 @@
                 'display:inline-block;font-size:1.45em;font-weight:700;}',
             '.nova-plus-root.p4-nova-fixed .p4-nova-summary__max{',
                 'display:inline-block;font-size:.83em;opacity:.55;margin-left:.15em;}',
+            '.nova-plus-root.p4-nova-fixed .p4-nova-summary__id{',
+                'display:inline-block;font-size:.76em;opacity:.65;',
+                'margin-left:auto;padding-left:.8em;white-space:nowrap;}',
             '.nova-plus-root.p4-nova-fixed .p4-nova-summary__heading{',
                 'font-size:.78em;letter-spacing:.09em;opacity:.58;',
                 'text-transform:uppercase;margin:.1em 0 .48em 0;}',
@@ -301,25 +304,36 @@
         var rating = parseFloat(movie.vote_average);
         if (!isFinite(rating)) rating = parseFloat(other.vote_average);
         var hasRating = isFinite(rating) && rating > 0 && rating <= 10;
+        var source = String(movie.source || other.source || '');
+        var tmdbId = parseInt(movie.tmdb_id || other.tmdb_id, 10);
+        if ((!isFinite(tmdbId) || tmdbId < 1) && source === 'tmdb') {
+            tmdbId = parseInt(movie.id || other.id, 10);
+        }
+        var hasId = isFinite(tmdbId) && tmdbId > 0;
         var title = String(movie.name || movie.title || other.name || other.title || '');
-        var key = title + ':' + (hasRating ? rating.toFixed(2) : '') + ':' + desc;
+        var key = title + ':' + (hasRating ? rating.toFixed(2) : '') + ':' + (hasId ? tmdbId : '') + ':' + desc;
 
         // Rebuild only if metadata changed or Nova replaced the hero contents.
         if (view.summaryStamp === key && old.length) return;
         if (old.length) old.remove();
 
-        if (!hasRating && !desc) {
+        if (!hasRating && !hasId && !desc) {
             view.summaryStamp = key;
             return;
         }
 
         var summary = $('<div class="p4-nova-summary"></div>');
-        if (hasRating) {
+        if (hasRating || hasId) {
             var row = $('<div class="p4-nova-summary__rating"></div>');
             row.append($('<span class="p4-nova-summary__label"></span>').text('TMDB'));
-            row.append($('<span class="p4-nova-summary__value"></span>')
-                .text('\u2605 ' + rating.toFixed(1)));
-            row.append($('<span class="p4-nova-summary__max"></span>').text('/10'));
+            if (hasRating) {
+                row.append($('<span class="p4-nova-summary__value"></span>')
+                    .text('\u2605 ' + rating.toFixed(1)));
+                row.append($('<span class="p4-nova-summary__max"></span>').text('/10'));
+            }
+            if (hasId) {
+                row.append($('<span class="p4-nova-summary__id"></span>').text('ID ' + tmdbId));
+            }
             summary.append(row);
         }
         if (desc) {
@@ -432,6 +446,7 @@
             unpin();
             pin(view);
         }
+        if (active) active.active = view.active;
         if (!resize(active)) unpin();
         else updateSummary(active);
     }
