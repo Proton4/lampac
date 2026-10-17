@@ -518,11 +518,11 @@
         var body = document.body;
         if (!body) return;
         var name = bodyFlag;
-        var value = String(body.className || '');
-        var match = new RegExp('(?:^|\\s)' + name + '(?:\\s|$)').test(value);
-        if (enabled && !match) body.className = value + (value ? ' ' : '') + name;
+        var classes = String(body.className || '');
+        var match = new RegExp('(?:^|\\s)' + name + '(?:\\s|$)').test(classes);
+        if (enabled && !match) body.className = classes + (classes ? ' ' : '') + name;
         else if (!enabled && match)
-            body.className = value.replace(new RegExp('(?:^|\\s)' + name + '(?=\\s|$)', 'g'), '')
+            body.className = classes.replace(new RegExp('(?:^|\\s)' + name + '(?=\\s|$)', 'g'), '')
                 .replace(/^\\s+|\\s+$/g, '');
     }
 
