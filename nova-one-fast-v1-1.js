@@ -135,6 +135,9 @@
             '.nova-plus-root.p4-nova-fixed .p4-nova-summary__description{',
                 'font-size:.98em;line-height:1.5;opacity:.86;',
                 'white-space:normal;word-wrap:break-word;overflow-wrap:break-word;}',
+            '.nova-plus-scope .nova-plus-root.nova-plus .nova-plus__bar{',
+                '-webkit-flex-wrap:wrap!important;-ms-flex-wrap:wrap!important;',
+                'flex-wrap:wrap!important;overflow:visible!important;}',
             '.nova-plus-scope .nova-plus-root.nova-plus .p4-nova-source-action{',
                 'display:inline-flex!important;-webkit-align-items:center;',
                 '-ms-flex-align:center;align-items:center;',
@@ -451,17 +454,18 @@
         if (inner.length && inner[0]) {
             var panelEl = inner[0];
             var panelBox = panelEl.getBoundingClientRect();
-            natural = Math.max(natural, panelEl.scrollHeight || 0,
-                panelEl.offsetHeight || 0, panelBox.height || 0);
-            // Include the visible last row/dropdown, even when it overflows
-            // the panel because of Nova's positioning and transforms.
-            var parts = inner.children();
-            parts.each(function () {
+            var measured = 0;
+            // Measure only visible children. The panel's own height can be
+            // stretched by our forced row height on old WebKit; using it
+            // would reintroduce the step-by-step downward drift.
+            inner.children().each(function () {
                 var box = this.getBoundingClientRect();
                 if ((!box.height && !box.width) ||
                     box.bottom < panelBox.top - 3) return;
-                natural = Math.max(natural, box.bottom - panelBox.top);
+                measured = Math.max(measured, box.bottom - panelBox.top);
             });
+            if (measured > 0) natural = Math.max(natural, measured + 4);
+            else natural = Math.max(natural, panelEl.scrollHeight || 0);
         }
         var cap = Math.max(120, Math.min(available - 165,
             Math.floor(available * 0.76)));
