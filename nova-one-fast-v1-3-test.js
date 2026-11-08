@@ -1,5 +1,5 @@
 /*
- * Proton4 Nova One Fast v1.3.3-test: stable movie scroll + delayed audio scan + Original mode.
+ * Proton4 Nova One Fast v1.3.4-test: retry empty movie scans + broader Original labels.
  * This plugin loads the original amikdn Nova Plus at runtime; the author's
  * code is NOT redistributed or modified. Only install this one plugin.
  * Companion to the original Nova Plus by amikdn.
@@ -671,7 +671,7 @@
     // v1.3-test: user-triggered cross-source Original / English audio scan.
     // It intentionally uses Nova's existing UI actions instead of private
     // nova_plus.js internals, so the original plugin remains untouched.
-    var P4_AUDIO_CACHE = 'p4_nova_audio_scan_cache_v2';
+    var P4_AUDIO_CACHE = 'p4_nova_audio_scan_cache_v3';
     var P4_AUDIO_TTL = 12 * 60 * 60 * 1000;
     var p4AudioScanBusy = false;
     var p4AudioProgressText = '';
@@ -702,7 +702,7 @@
     function p4AudioTags(title) {
         var text = p4AudioNorm(title);
         var tags = [];
-        var original = /(^|[^a-z])(original|orig)(?:\.|inal\s+audio|\s+audio)?([^a-z]|$)|\u043e\u0440\u0438\u0433\u0438\u043d\u0430\u043b(?:\u044c\u043d\u0430\u044f|\u044c\u043d\u044b\u0439|\u044c\u043d\u043e\u0435)?|\u043e\u0440\u0438\u0433(?:\.|[^a-z\u0400-\u04ff]|$)/i.test(text);
+        var original = /(^|[^a-z])(original|orig)(?:\.|inal\s+(audio|sound)|\s+(audio|sound))?([^a-z]|$)|\u043e\u0440\u0438\u0433\u0438\u043d\u0430\u043b(?:\u044c\u043d\u0430\u044f|\u044c\u043d\u044b\u0439|\u044c\u043d\u043e\u0435)?(?:\s+(\u0437\u0432\u0443\u043a|\u0434\u043e\u0440\u043e\u0436\u043a\u0430|\u043e\u0437\u0432\u0443\u0447\u043a\u0430))?|\u043e\u0440\u0438\u0433(?:\.|[^a-z\u0400-\u04ff]|$)/i.test(text);
         var english = /(^|[^a-z])(english|eng)(?:\.|lish\s+audio|\s+audio)?([^a-z]|$)|\u0430\u043d\u0433\u043b\u0438\u0439\u0441\u043a|\u0430\u043d\u0433\u043b(?:\.|[^a-z\u0400-\u04ff]|$)/i.test(text);
         if (original) tags.push('Original');
         if (english || (original && p4MovieOriginalLanguage() === 'en')) tags.push('EN');
@@ -1094,7 +1094,11 @@
 
         if (!force) {
             var cached = p4AudioCacheGet();
-            if (cached && cached.list) return p4AudioShowResults(cached.list, true, mode);
+            // A non-empty result is useful cache. An empty result can mean
+            // the movie voice dropdown was not ready during an earlier scan,
+            // so never let it block a real retry.
+            if (cached && cached.list && cached.list.length)
+                return p4AudioShowResults(cached.list, true, mode);
         }
 
         p4AudioScanBusy = true;
@@ -1135,7 +1139,7 @@
                     p4AudioScanBusy = false;
                     try { Lampa.Loading.stop(); } catch (e) {}
                     p4AudioButtonText();
-                    p4AudioCacheSet(results);
+                    if (results && results.length) p4AudioCacheSet(results);
                     p4AudioShowResults(results, false, mode);
                 };
                 if (original && p4AudioSourceNorm(p4AudioCurrentSourceTitle()) !== p4AudioSourceNorm(original.title)) {
@@ -1397,11 +1401,11 @@
             } catch (e) { log('fallback: ' + e); }
         }, 2500);
         schedule();
-        log('v1.3.3-test: stable movie scroll + delayed voice scan + Original mode');
+        log('v1.3.4-test: retry empty movie scans + broader Original labels');
     }
 
     window.P4NovaFixed = {
-        version:'1.3.3-test',
+        version:'1.3.4-test',
         sync:sync,
         enabled:isEnabled,
         status:function () {
