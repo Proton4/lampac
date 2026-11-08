@@ -1,5 +1,5 @@
 /*
- * Proton4 Nova One Fast v1.3.2-test: Original/English scan + real movie DOM support.
+ * Proton4 Nova One Fast v1.3.3-test: stable movie scroll + delayed audio scan + Original mode.
  * This plugin loads the original amikdn Nova Plus at runtime; the author's
  * code is NOT redistributed or modified. Only install this one plugin.
  * Companion to the original Nova Plus by amikdn.
@@ -539,11 +539,27 @@
         var measured = 0;
 
         if (p4IsMovie(view)) {
-            // Movie mode has no nova-plus__panel: toolbar/dropdowns are direct
-            // children of .nova__rows. Measure the real content and cap it so
-            // the file list below always keeps usable space.
+            // IMPORTANT: do not measure view.rows.scrollHeight here.
+            // rows has a forced height; using its own scrollHeight creates the
+            // same positive feedback loop we fixed earlier for series
+            // (+a few px on every sync, perceived as the panel sliding down).
+            // Measure only the actual direct children instead.
             try {
-                natural = Math.max(105, view.rows[0].scrollHeight || 0);
+                var movieBounds = view.rows[0].getBoundingClientRect();
+                var movieScroll = view.rows[0].scrollTop || 0;
+                view.rows.children('.nova-toolbar,.nova-drop').each(function () {
+                    if (!this.getBoundingClientRect) return;
+                    var box = this.getBoundingClientRect();
+                    if (!box.width || !box.height) return;
+                    var style = window.getComputedStyle ?
+                        window.getComputedStyle(this, null) : this.currentStyle;
+                    if (style && (style.display === 'none' ||
+                        style.visibility === 'hidden')) return;
+                    var bottom = box.bottom - movieBounds.top + movieScroll;
+                    if (bottom > 0 && bottom < available * 2)
+                        measured = Math.max(measured, bottom);
+                });
+                natural = measured > 0 ? Math.max(105, measured) : 130;
             } catch (e) {
                 natural = 130;
             }
@@ -655,9 +671,10 @@
     // v1.3-test: user-triggered cross-source Original / English audio scan.
     // It intentionally uses Nova's existing UI actions instead of private
     // nova_plus.js internals, so the original plugin remains untouched.
-    var P4_AUDIO_CACHE = 'p4_nova_audio_scan_cache_v1';
+    var P4_AUDIO_CACHE = 'p4_nova_audio_scan_cache_v2';
     var P4_AUDIO_TTL = 12 * 60 * 60 * 1000;
     var p4AudioScanBusy = false;
+    var p4AudioProgressText = '';
 
     function p4AudioNorm(text) {
         return String(text || '').toLowerCase()
@@ -685,18 +702,21 @@
     function p4AudioTags(title) {
         var text = p4AudioNorm(title);
         var tags = [];
-        var original = /(^|[^a-z])(original|orig)([^a-z]|$)|\u043e\u0440\u0438\u0433\u0438\u043d\u0430\u043b|\u043e\u0440\u0438\u0433(?:\.|[^a-z\u0400-\u04ff]|$)/i.test(text);
-        var english = /(^|[^a-z])(english|eng)([^a-z]|$)|\u0430\u043d\u0433\u043b\u0438\u0439\u0441\u043a|\u0430\u043d\u0433\u043b(?:\.|[^a-z\u0400-\u04ff]|$)/i.test(text);
+        var original = /(^|[^a-z])(original|orig)(?:\.|inal\s+audio|\s+audio)?([^a-z]|$)|\u043e\u0440\u0438\u0433\u0438\u043d\u0430\u043b(?:\u044c\u043d\u0430\u044f|\u044c\u043d\u044b\u0439|\u044c\u043d\u043e\u0435)?|\u043e\u0440\u0438\u0433(?:\.|[^a-z\u0400-\u04ff]|$)/i.test(text);
+        var english = /(^|[^a-z])(english|eng)(?:\.|lish\s+audio|\s+audio)?([^a-z]|$)|\u0430\u043d\u0433\u043b\u0438\u0439\u0441\u043a|\u0430\u043d\u0433\u043b(?:\.|[^a-z\u0400-\u04ff]|$)/i.test(text);
         if (original) tags.push('Original');
         if (english || (original && p4MovieOriginalLanguage() === 'en')) tags.push('EN');
         return tags;
     }
 
     function p4AudioButtonText(text) {
+        p4AudioProgressText = text || '';
         try {
             if (!active || !active.rows) return;
             var button = active.rows.find('.p4-nova-refresh .nova-chip__label').first();
-            if (button.length) button.text(text || '\u21bb \u0418\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u0438');
+            if (button.length) button.text(
+                p4AudioProgressText || '\u21bb \u0418\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u0438'
+            );
         } catch (e) {}
     }
 
@@ -885,19 +905,56 @@
         var wideGroup = active.rows.find('[data-nova-group="voice"]').first();
         if (wideGroup.length) return done(p4AudioReadVoices(entry));
 
-        // Movies use classic Nova rows even when the global mode is "wide".
-        // Open the Voice dropdown first, then inspect it.
-        var voice = active.rows.find('[data-nova-focus="voice"]').first();
-        if (!voice.length) return done(p4AudioReadVoices(entry));
+        // Movie mode is asynchronous: the source label changes first, while
+        // the voice filter may be rebuilt several hundred ms later. Poll for
+        // the actual Voice button/drop instead of sampling once after 260 ms.
+        var started = Date.now();
+        var opened = false;
 
-        var existing = p4AudioVoiceDrop();
-        if (!existing.length) {
-            try { voice.trigger('hover:enter'); } catch (e) {}
-        }
+        var tick = function () {
+            if (!p4AudioScanBusy) return done(p4AudioReadVoices(entry));
+            if (!active || !active.rows) {
+                if (Date.now() - started > 5500) return done(p4AudioReadVoices(entry));
+                return setTimeout(tick, 220);
+            }
 
-        setTimeout(function () {
-            done(p4AudioReadVoices(entry));
-        }, 260);
+            var voice = active.rows.find('[data-nova-focus="voice"]').first();
+            var drop = p4AudioVoiceDrop();
+
+            if (!drop.length && voice.length && !opened) {
+                opened = true;
+                try { voice.trigger('hover:enter'); } catch (e) {}
+                return setTimeout(tick, 280);
+            }
+
+            var row = p4AudioReadVoices(entry);
+            if (row.voices && row.voices.length) return done(row);
+
+            // Nova can replace the toolbar once more after the request ends.
+            // If the previous dropdown vanished, allow reopening the new one.
+            if (!drop.length && voice.length && Date.now() - started > 700)
+                opened = false;
+
+            if (Date.now() - started > 5500) return done(row);
+            setTimeout(tick, 240);
+        };
+
+        setTimeout(tick, 180);
+    }
+
+    function p4AudioVoiceMatchMode(voice, mode) {
+        var tags = voice && voice.tags || [];
+        if (mode === 'original') return tags.indexOf('Original') !== -1;
+        if (mode === 'english') return tags.indexOf('EN') !== -1;
+        return tags.indexOf('Original') !== -1 || tags.indexOf('EN') !== -1;
+    }
+
+    function p4AudioRowForMode(row, mode) {
+        var out = {key:row.key, title:row.title, voices:[]};
+        (row.voices || []).forEach(function (voice) {
+            if (p4AudioVoiceMatchMode(voice, mode)) out.voices.push(voice);
+        });
+        return out;
     }
 
     function p4AudioResultTitle(row) {
@@ -977,27 +1034,45 @@
         });
     }
 
-    function p4AudioShowResults(list, cached) {
+    function p4AudioShowResults(list, cached, mode) {
         list = list || [];
+        mode = mode || 'all';
         if (!Lampa.Select || typeof Lampa.Select.show !== 'function') return;
-        var items = [];
+
+        var rows = [];
         list.forEach(function (row) {
             if (!row || !row.voices || !row.voices.length) return;
+            var filtered = p4AudioRowForMode(row, mode);
+            if (filtered.voices.length) rows.push(filtered);
+        });
+
+        var items = [];
+        rows.forEach(function (row) {
             items.push({title:p4AudioResultTitle(row), p4_row:row});
         });
         items.push({
             title: cached ? '\u21bb \u041f\u0435\u0440\u0435\u0441\u043a\u0430\u043d\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0438\u0441\u0442\u043e\u0447\u043d\u0438\u043a\u0438' : '\u21bb \u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c \u0441\u043a\u0430\u043d\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
             p4_rescan:true
         });
-        if (!list.length) {
-            items.unshift({title:'\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e Original / English', p4_info:true});
+        if (!rows.length) {
+            items.unshift({
+                title: mode === 'original'
+                    ? '\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e \u043e\u0437\u0432\u0443\u0447\u0435\u043a \u0441 \u043c\u0435\u0442\u043a\u043e\u0439 Original'
+                    : '\u041d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u043e Original / English',
+                p4_info:true
+            });
         }
+
+        var title = mode === 'original' ? 'Original' :
+            (mode === 'english' ? 'English' : 'Original / English');
+
         Lampa.Select.show({
-            title:'Original / English \u2014 ' + String(list.length) + ' \u0438\u0441\u0442\u043e\u0447\u043d.',
+            title:title + ' \u2014 ' + String(rows.length) + ' \u0438\u0441\u0442\u043e\u0447\u043d.',
             items:items,
             onSelect:function (item) {
                 if (!item) return;
-                if (item.p4_rescan) return setTimeout(function () { p4AudioStartScan(true); }, 80);
+                if (item.p4_rescan)
+                    return setTimeout(function () { p4AudioStartScan(true, mode); }, 80);
                 if (item.p4_row) return p4AudioChooseVoice(item.p4_row);
             },
             onBack:function () {
@@ -1006,7 +1081,8 @@
         });
     }
 
-    function p4AudioStartScan(force) {
+    function p4AudioStartScan(force, mode) {
+        mode = mode || 'all';
         if (p4AudioScanBusy) {
             try { Lampa.Noty.show('\u041f\u043e\u0438\u0441\u043a Original / English \u0443\u0436\u0435 \u0438\u0434\u0451\u0442'); } catch (e) {}
             return;
@@ -1018,11 +1094,11 @@
 
         if (!force) {
             var cached = p4AudioCacheGet();
-            if (cached && cached.list) return p4AudioShowResults(cached.list, true);
+            if (cached && cached.list) return p4AudioShowResults(cached.list, true, mode);
         }
 
         p4AudioScanBusy = true;
-        p4AudioButtonText('EN\u2026');
+        p4AudioButtonText(mode === 'original' ? 'Orig\u2026' : 'EN\u2026');
         try {
             Lampa.Loading.start(function () {
                 p4AudioScanBusy = false;
@@ -1060,7 +1136,7 @@
                     try { Lampa.Loading.stop(); } catch (e) {}
                     p4AudioButtonText();
                     p4AudioCacheSet(results);
-                    p4AudioShowResults(results, false);
+                    p4AudioShowResults(results, false, mode);
                 };
                 if (original && p4AudioSourceNorm(p4AudioCurrentSourceTitle()) !== p4AudioSourceNorm(original.title)) {
                     p4AudioSwitchSource(original, function () { setTimeout(afterRestore, 180); });
@@ -1072,7 +1148,10 @@
                 if (index >= sources.length) return finish();
 
                 var entry = sources[index++];
-                p4AudioButtonText('EN ' + index + '/' + sources.length);
+                p4AudioButtonText(
+                    (mode === 'original' ? 'Orig ' : 'EN ') +
+                    index + '/' + sources.length
+                );
 
                 p4AudioSwitchSource(entry, function (ok) {
                     if (!p4AudioScanBusy) return;
@@ -1094,12 +1173,16 @@
             title:'Источники — Nova One',
             items:[
                 {title:'🔊 Найти Original / English', p4_action:'audio'},
+                {title:'🎬 Найти только Original', p4_action:'original'},
                 {title:'Показать все, включая скрытые', p4_action:'all'},
                 {title:'Перезапустить поиск источников', p4_action:'refresh'}
             ],
             onSelect:function (item) {
                 if (!item) return;
-                if (item.p4_action === 'audio') setTimeout(function () { p4AudioStartScan(false); }, 75);
+                if (item.p4_action === 'audio')
+                    setTimeout(function () { p4AudioStartScan(false, 'all'); }, 75);
+                else if (item.p4_action === 'original')
+                    setTimeout(function () { p4AudioStartScan(false, 'original'); }, 75);
                 else if (item.p4_action === 'all') setTimeout(p4ShowAllSources, 75);
                 else if (item.p4_action === 'refresh') setTimeout(p4RecheckSources, 75);
             }
@@ -1128,7 +1211,9 @@
         if (bar.find('.p4-nova-refresh').length) return;
 
         var button = $('<div class="nova-chip selector p4-nova-refresh"></div>');
-        button.append($('<span class="nova-chip__label"></span>').text('↻ Источники'));
+        button.append($('<span class="nova-chip__label"></span>').text(
+            p4AudioProgressText || '↻ Источники'
+        ));
         // No data-nova-focus: Nova rebind() would overwrite its handler.
         button.on('hover:enter.p4src click.p4src', function () {
             p4SourceMenu();
@@ -1312,11 +1397,11 @@
             } catch (e) { log('fallback: ' + e); }
         }, 2500);
         schedule();
-        log('v1.3.2-test: real movie DOM support + movie audio scan');
+        log('v1.3.3-test: stable movie scroll + delayed voice scan + Original mode');
     }
 
     window.P4NovaFixed = {
-        version:'1.3.2-test',
+        version:'1.3.3-test',
         sync:sync,
         enabled:isEnabled,
         status:function () {
