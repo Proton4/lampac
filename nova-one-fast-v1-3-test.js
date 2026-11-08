@@ -1,5 +1,5 @@
 /*
- * Proton4 Nova One Fast v1.3-test: v1.2 plus user-triggered Original / English source scan.
+ * Proton4 Nova One Fast v1.3.1-test: Original/English scan + movie UI fixes.
  * This plugin loads the original amikdn Nova Plus at runtime; the author's
  * code is NOT redistributed or modified. Only install this one plugin.
  * Companion to the original Nova Plus by amikdn.
@@ -107,6 +107,17 @@
             '.nova-plus-root.nova-plus.p4-nova-fixed>.nova-plus__strip::-webkit-scrollbar-thumb,',
                 '.nova-plus-root.nova-plus.p4-nova-fixed>.nova__rows::-webkit-scrollbar-thumb{',
                 'background:rgba(255,255,255,.32);border-radius:8px;}',
+            '.nova-plus-root.nova-plus.p4-nova-fixed.p4-nova-movie ',
+                '.nova-plus__group[data-nova-group="voice"]>.nova-plus__row{',
+                'max-height:9.6em!important;overflow-y:auto!important;overflow-x:hidden!important;',
+                'align-content:flex-start!important;padding-right:.45em!important;',
+                '-webkit-overflow-scrolling:touch!important;box-sizing:border-box!important;}',
+            '.nova-plus-root.nova-plus.p4-nova-fixed.p4-nova-movie ',
+                '.nova-plus__group[data-nova-group="voice"]>.nova-plus__row::-webkit-scrollbar{',
+                'width:7px!important;}',
+            '.nova-plus-root.nova-plus.p4-nova-fixed.p4-nova-movie ',
+                '.nova-plus__group[data-nova-group="voice"]>.nova-plus__row::-webkit-scrollbar-thumb{',
+                'background:rgba(255,255,255,.38)!important;border-radius:8px!important;}',
             '.nova-plus-root.nova-plus.p4-nova-fixed>.nova__rows{z-index:2!important;}',
             '.nova-plus-root.nova-plus.p4-nova-fixed>.nova-plus__strip{z-index:1!important;}',
             '.nova-plus-root.nova-plus.p4-nova-fixed .nova-plus__bar{',
@@ -212,6 +223,39 @@
         if (delta) panel[0].scrollTop += Math.round(delta);
     }
 
+    function p4IsMovie(view) {
+        var activity = view && view.active || {};
+        var movie = activity.movie || activity.card || {};
+        var media = String(movie.media_type || movie.type || '').toLowerCase();
+        if (media === 'tv' || media === 'serial' || media === 'series') return false;
+        if (media === 'movie' || media === 'film') return true;
+        if (movie.first_air_date || movie.number_of_seasons || movie.name) return false;
+        if (movie.release_date || movie.title) return true;
+        return false;
+    }
+
+    function p4MarkMovie(view) {
+        if (!view || !view.root) return;
+        if (p4IsMovie(view)) view.root.addClass('p4-nova-movie');
+        else view.root.removeClass('p4-nova-movie');
+    }
+
+    function p4FitRows(view, element) {
+        if (!view || !element) return;
+        if (p4IsMovie(view)) {
+            try {
+                var voiceRow = $(element).closest(
+                    '.nova-plus__group[data-nova-group="voice"]>.nova-plus__row'
+                );
+                if (voiceRow.length && voiceRow[0].scrollHeight > voiceRow[0].clientHeight + 2) {
+                    fitInto(voiceRow, element);
+                    return;
+                }
+            } catch (e) {}
+        }
+        fitInto(view.rows, element);
+    }
+
     function bindPanelEvents(view) {
         var strip = view.strip, rows = view.rows, hero = view.hero;
         view.domListeners = [];
@@ -236,7 +280,7 @@
         strip.on('hover:focus.p4fixed focusin.p4fixed',
             '.selector,.nova-card', function () { fitInto(strip, this); });
         rows.on('hover:focus.p4fixed focusin.p4fixed',
-            '.selector,.nova-chip', function () { fitInto(rows, this); });
+            '.selector,.nova-chip', function () { p4FitRows(view, this); });
     }
 
 
@@ -951,8 +995,25 @@
 
     function p4AddSourceButton(view) {
         if (!view || !view.rows) return;
-        var bar = view.rows.find('.nova-plus__bar').first();
-        if (!bar.length || bar.find('.p4-nova-refresh').length) return;
+
+        // Nova rebuilds the movie toolbar after file/voice data arrives.
+        // Always target the final live bar; if it is temporarily absent,
+        // create a small fallback bar inside the panel and let the next
+        // Nova rebuild replace it naturally.
+        var bars = view.rows.find('.nova-plus__bar');
+        var bar = bars.length ? bars.last() : null;
+        if (!bar || !bar.length) {
+            var panel = view.rows.children('.nova-plus__panel').first();
+            if (!panel.length) return;
+            bar = panel.children('.p4-nova-fallback-bar').first();
+            if (!bar.length) {
+                bar = $('<div class="nova-toolbar nova-plus__bar p4-nova-fallback-bar"></div>');
+                panel.prepend(bar);
+            }
+        }
+
+        if (bar.find('.p4-nova-refresh').length) return;
+
         var button = $('<div class="nova-chip selector p4-nova-refresh"></div>');
         button.append($('<span class="nova-chip__label"></span>').text('↻ Источники'));
         // No data-nova-focus: Nova rebind() would overwrite its handler.
@@ -960,8 +1021,8 @@
             p4SourceMenu();
         });
         bar.prepend(button);
+
         // Keep the newly inserted selector reachable by the TV remote.
-        // collectionAppend does not clear/reset focus on existing Nova cards.
         try {
             if (Lampa.Controller &&
                 typeof Lampa.Controller.collectionAppend === 'function') {
@@ -994,6 +1055,7 @@
             pin(view);
         }
         if (active) active.active = view.active;
+        p4MarkMovie(active);
         if (!resize(active)) unpin();
         else {
             updateSummary(active);
@@ -1071,6 +1133,9 @@
                     if (isNovaWide()) {
                         prepaint();
                         sync();
+                        // Movie mode can rebuild rows/bar once more after files
+                        // and voice metadata arrive. Re-run after that paint.
+                        setTimeout(schedule, 140);
                     }
                 } catch (e) { log('observer: ' + e); }
                 observing = false;
@@ -1134,11 +1199,11 @@
             } catch (e) { log('fallback: ' + e); }
         }, 2500);
         schedule();
-        log('v1.3.0-test: Original / English cross-source scan');
+        log('v1.3.1-test: movie voice scrolling + persistent source button');
     }
 
     window.P4NovaFixed = {
-        version:'1.3.0-test',
+        version:'1.3.1-test',
         sync:sync,
         enabled:isEnabled,
         status:function () {
